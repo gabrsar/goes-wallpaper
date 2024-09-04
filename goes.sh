@@ -1,7 +1,8 @@
 #!/bin/bash
 
+UPDATE_WALLPAPER_CMD="/usr/bin/plasma-apply-wallpaperimage"
 # Directory to save the images
-SAVE_DIR="/home/gabriel/gabriel/projetos/goes/data"
+SAVE_DIR="./data"
 
 # Ensure the directory exists
 mkdir -p "$SAVE_DIR"
@@ -9,16 +10,12 @@ mkdir -p "$SAVE_DIR"
 # set as false to keep only current file
 KEEP_FILES=true
 
-# Find the url you want to download and change target as the begin of the name of the file resolution size.
-# URL of the page to scrape
-FULL_DISK_PAGE_URL="https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G16"
-FULL_DISK_TARGET='5424' #5424 x 5424 px, (JPG, 14.04 MB)
-FULL_DISK_NAME="FD"
-
-
-SSA_PAGE_URL="https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G16&sector=ssa"
-SSA_TARGET='7200' #7200 x 4320 px, (JPG, 10.12 MB)
-SSA_NAME="SSA"
+# Array of configurations for the files to download
+declare -a CONFIGS=(
+  #PAGE URL; RESOLUTION WANTED (MUST BE THE FIRST ON THE PAGE); NAME TO SAVE;
+  "https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G16 5424 FD"
+  "https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G16&sector=ssa 7200 SSA"
+)
 
 # Interval in seconds (10 minutes)
 INTERVAL=600
@@ -29,7 +26,7 @@ function download_image(){
   NAME="$3"
   TARGET="$4"
 
-	PAGE_FILE="$SAVE_DIR/page.html"
+  PAGE_FILE="$SAVE_DIR/page.html"
   curl -s "$URL" > "$PAGE_FILE"
   URL_ADDRESS=$(cat "$PAGE_FILE" | grep "$TARGET" | head -n 1 | cut -d "=" -f 4 | cut -d "'" -f 2)
 
@@ -55,20 +52,25 @@ while true; do
     if [ "$ac_adapter" != "on" ]; then
         echo "not on ac. waiting..."
         sleep "$INTERVAL"
+        continue
     fi
 
     echo "downloading images..."
-    full_disk=$(download_image "$FULL_DISK_PAGE_URL" "$SAVE_DIR/$FULL_DISK_NAME-last_url.txt" "$FULL_DISK_NAME" "$FULL_DISK_TARGET")
-    ssa=$(download_image "$SSA_PAGE_URL" "$SAVE_DIR/$SSA_NAME-last_url.txt" "$SSA_NAME" "$SSA_TARGET")
+    downloaded_files=()
 
-    rnd=$(shuf -i 1-2 -n 1)
+    for config in "${CONFIGS[@]}"; do
+        IFS=' ' read -r -a params <<< "$config"
+        file=$(download_image "${params[0]}" "$SAVE_DIR/${params[2]}-last_url.txt" "${params[2]}" "${params[1]}")
+        if [ -n "$file" ]; then
+            downloaded_files+=("$file")
+        fi
+    done
 
-    if [ "$rnd" -eq 1 ] && [ -n "$ssa" ]; then
-        echo "ssa"
-        /usr/bin/plasma-apply-wallpaperimage "$ssa"
-    elif [ "$rnd" -eq 2 ] && [ -n "$full_disk" ]; then
-        echo "fd"
-        /usr/bin/plasma-apply-wallpaperimage "$full_disk"
+    if [ ${#downloaded_files[@]} -gt 0 ]; then
+        rnd=$(shuf -i 0-$((${#downloaded_files[@]}-1)) -n 1)
+        selected_file="${downloaded_files[$rnd]}"
+        echo "Setting wallpaper to $selected_file"
+        $UPDATE_WALLPAPER_CMD "$selected_file"
     fi
 
     sleep "$INTERVAL"
