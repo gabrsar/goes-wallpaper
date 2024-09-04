@@ -26,8 +26,9 @@ function download_image(){
   NAME="$3"
   TARGET="$4"
 
-  curl -s "$URL" > page1.html
-  URL_ADDRESS=$(cat page1.html | grep "$TARGET" | head -n 1 | cut -d "=" -f 4 | cut -d "'" -f 2)
+	PAGE_FILE="$SAVE_DIR/page.html"
+  curl -s "$URL" > "$PAGE_FILE"
+  URL_ADDRESS=$(cat "$PAGE_FILE" | grep "$TARGET" | head -n 1 | cut -d "=" -f 4 | cut -d "'" -f 2)
 
   touch "$LAST_URL_FILE"
   LAST_URL=$(cat "$LAST_URL_FILE" 2>/dev/null)
