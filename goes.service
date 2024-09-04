@@ -1,13 +1,12 @@
 [Unit]
-Description=Run GOES script on user login
+Description=Updates wallpaper with realtime imagery from meteorological satellite GOES
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/gabriel/gabriel/projetos/goes/goes.sh
-User=gabriel
+ExecStart=$SCRIPT
 Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/gabriel/.Xauthority
+Environment=XAUTHORITY=/home/$USERNAME/.Xauthority
 
 [Install]
 WantedBy=default.target
