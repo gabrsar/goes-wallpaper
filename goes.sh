@@ -2,7 +2,7 @@
 
 UPDATE_WALLPAPER_CMD="/usr/bin/plasma-apply-wallpaperimage"
 # Directory to save the images
-SAVE_DIR="./data"
+SAVE_DIR="$(pwd)/data"
 
 # Ensure the directory exists
 mkdir -p "$SAVE_DIR"
@@ -16,6 +16,8 @@ declare -a CONFIGS=(
   "https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G16 5424 FD"
   "https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G16&sector=ssa 7200 SSA"
 )
+
+rm "$SAVE_DIR/*last-url.txt"
 
 # Interval in seconds (10 minutes)
 INTERVAL=600
