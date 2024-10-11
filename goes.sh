@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Directory to save the images
-SAVE_DIR="$(pwd)/data"
+SAVE_DIR="$(pwd)/.goes-wallpaper-data"
 
 # Ensure the directory exists
 mkdir -p "$SAVE_DIR"
