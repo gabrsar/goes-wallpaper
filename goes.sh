@@ -1,6 +1,5 @@
 #!/bin/bash
 
-UPDATE_WALLPAPER_CMD="/usr/bin/plasma-apply-wallpaperimage"
 # Directory to save the images
 SAVE_DIR="$(pwd)/data"
 
@@ -21,6 +20,52 @@ rm "$SAVE_DIR/*last-url.txt"
 
 # Interval in seconds (10 minutes)
 INTERVAL=300
+
+set_wallpaper() {
+    wallpaper_path="$1"
+    if pgrep -x "i3" > /dev/null; then
+        # i3 window manager
+        feh --bg-scale "$wallpaper_path"
+    elif pgrep -x "bspwm" > /dev/null; then
+        # bspwm window manager
+        feh --bg-scale "$wallpaper_path"
+    elif pgrep -x "xfwm4" > /dev/null; then
+        # Xfce
+        xfconf-query --channel xfce4-desktop --property /backdrop/screen0/monitor0/workspace0/last-image --set "$wallpaper_path"
+    elif pgrep -x "openbox" > /dev/null; then
+        # Openbox
+        feh --bg-scale "$wallpaper_path"
+    elif pgrep -x "gnome-shell" > /dev/null; then
+        # GNOME
+        gsettings set org.gnome.desktop.background picture-uri "file://$wallpaper_path"
+    elif pgrep -x "plasmashell" > /dev/null; then
+				# you can try this too: 
+				# /usr/bin/plasma-apply-wallpaperimage "$wallpaper_path"
+        qdbus org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript \
+        "var allDesktops = desktops(); \
+        for (i = 0; i < allDesktops.length; i++) { \
+            d = allDesktops[i]; \
+            d.wallpaperPlugin = 'org.kde.image'; \
+            d.currentConfigGroup = Array('Wallpaper', 'org.kde.image', 'General'); \
+            d.writeConfig('Image', 'file://$wallpaper_path') \
+        }"
+    elif pgrep -x "awesome" > /dev/null; then
+        # awesome window manager
+        feh --bg-scale "$wallpaper_path"
+    elif pgrep -x "sway" > /dev/null; then
+        # sway (Wayland compositor)
+        swaymsg output "*" bg "$wallpaper_path" fill
+    elif pgrep -x "herbstluftwm" > /dev/null; then
+        # herbstluftwm
+        feh --bg-scale "$wallpaper_path"
+    elif pgrep -x "enlightenment" > /dev/null; then
+        # Enlightenment
+        enlightenment_remote -desktop-bg-add 0 0 "$wallpaper_path"
+    else
+        # Fallback to feh if no window manager is detected
+        feh --bg-scale "$wallpaper_path"
+    fi
+}
 
 function download_image(){
   URL="$1"
@@ -72,7 +117,7 @@ while true; do
         rnd=$(shuf -i 0-$((${#downloaded_files[@]}-1)) -n 1)
         selected_file="${downloaded_files[$rnd]}"
         echo "Setting wallpaper to $selected_file"
-        $UPDATE_WALLPAPER_CMD "$selected_file"
+        set_wallpaper "$selected_file"
     fi
 
     sleep "$INTERVAL"

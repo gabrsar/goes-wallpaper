@@ -1,0 +1,48 @@
+diff --git a/goes.sh b/goes.sh
+index 1f2e28f..a7b3b52 100755
+--- a/goes.sh
++++ b/goes.sh
+@@ -1,6 +1,52 @@
+ #!/bin/bash
+
++set_wallpaper() {
++    wallpaper_path=""
++    if pgrep -x "i3" > /dev/null; then
++        # i3 window manager
++        feh --bg-scale ""
++    elif pgrep -x "bspwm" > /dev/null; then
++        # bspwm window manager
++        feh --bg-scale ""
++    elif pgrep -x "xfwm4" > /dev/null; then
++        # Xfce
++        xfconf-query --channel xfce4-desktop --property /backdrop/screen0/monitor0/workspace0/last-image --set ""
++    elif pgrep -x "openbox" > /dev/null; then
++        # Openbox
++        feh --bg-scale ""
++    elif pgrep -x "gnome-shell" > /dev/null; then
++        # GNOME
++        gsettings set org.gnome.desktop.background picture-uri "file://"
++    elif pgrep -x "plasmashell" > /dev/null; then
++        # KDE Plasma
++        qdbus org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript +        "var allDesktops = desktops(); +        for (i = 0; i < allDesktops.length; i++) { +            d = allDesktops[i]; +            d.wallpaperPlugin = 'org.kde.image'; +            d.currentConfigGroup = Array('Wallpaper', 'org.kde.image', 'General'); +            d.writeConfig('Image', 'file://') +        }"
++    elif pgrep -x "awesome" > /dev/null; then
++        # awesome window manager
++        feh --bg-scale ""
++    elif pgrep -x "sway" > /dev/null; then
++        # sway (Wayland compositor)
++        swaymsg output "*" bg "" fill
++    elif pgrep -x "herbstluftwm" > /dev/null; then
++        # herbstluftwm
++        feh --bg-scale ""
++    elif pgrep -x "enlightenment" > /dev/null; then
++        # Enlightenment
++        enlightenment_remote -desktop-bg-add 0 0 ""
++    else
++        # Fallback to feh if no window manager is detected
++        feh --bg-scale ""
++    fi
++}
++
++set_wallpaper "/path/to/your/wallpaper.jpg"
++
+ # Rest of your script
