@@ -20,7 +20,7 @@ declare -a CONFIGS=(
 rm "$SAVE_DIR/*last-url.txt"
 
 # Interval in seconds (10 minutes)
-INTERVAL=600
+INTERVAL=300
 
 function download_image(){
   URL="$1"
