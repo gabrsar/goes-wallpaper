@@ -1,0 +1,282 @@
+#!/bin/bash
+
+# Path to the fetching script - use absolute path for LaunchAgent compatibility
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FETCH_SCRIPT="$SCRIPT_DIR/goes-fetch.sh"
+
+# Interval in seconds (5 minutes)
+INTERVAL=300
+
+# LaunchAgent plist file path
+PLIST_FILE="$HOME/Library/LaunchAgents/com.goes-wallpaper.plist"
+
+# Function to display usage information
+usage() {
+    echo "Usage: $0 [command]"
+    echo "Commands:"
+    echo "  start    - Start the wallpaper service"
+    echo "  stop     - Stop the wallpaper service"
+    echo "  enable   - Enable the wallpaper service to start at login"
+    echo "  disable  - Disable the wallpaper service from starting at login"
+    echo "  status   - Check if the wallpaper service is running"
+    echo "  (no args)- Run the wallpaper service in the foreground"
+    exit 1
+}
+
+# Function to start the service
+start_service() {
+    echo "Starting GOES Wallpaper service..."
+    launchctl bootstrap gui/$UID "$PLIST_FILE" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        echo "Service started successfully."
+    else
+        echo "Service is already running or there was an error starting it."
+        echo "Check the log file at: $HOME/Library/Logs/goes-wallpaper.log"
+    fi
+}
+
+# Function to stop the service
+stop_service() {
+    echo "Stopping GOES Wallpaper service..."
+    launchctl bootout gui/$UID "$PLIST_FILE" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        echo "Service stopped successfully."
+    else
+        echo "Service is not running or there was an error stopping it."
+    fi
+}
+
+# Function to enable the service
+enable_service() {
+    # In macOS, enabling means the service will start at login
+    # This is controlled by the RunAtLoad key in the plist file
+    # We'll check if the plist file exists and has the RunAtLoad key set to true
+    if [ -f "$PLIST_FILE" ]; then
+        if grep -q "<key>RunAtLoad</key>" "$PLIST_FILE" && grep -q "<true/>" "$PLIST_FILE"; then
+            echo "Service is already enabled to start at login."
+        else
+            echo "Enabling GOES Wallpaper service to start at login..."
+            # We need to modify the plist file to set RunAtLoad to true
+            # This is a simplified approach; in a real scenario, you might want to use PlistBuddy
+            sed -i '' 's/<key>RunAtLoad<\/key>.*/<key>RunAtLoad<\/key>\n    <true\/>/' "$PLIST_FILE"
+            echo "Service enabled successfully."
+        fi
+    else
+        echo "Error: Service plist file not found. Please run the install-mac.sh script first."
+        exit 1
+    fi
+}
+
+# Function to disable the service
+disable_service() {
+    # In macOS, disabling means the service won't start at login
+    # This is controlled by the RunAtLoad key in the plist file
+    if [ -f "$PLIST_FILE" ]; then
+        echo "Disabling GOES Wallpaper service from starting at login..."
+        # We need to modify the plist file to set RunAtLoad to false
+        # This is a simplified approach; in a real scenario, you might want to use PlistBuddy
+        sed -i '' 's/<key>RunAtLoad<\/key>.*/<key>RunAtLoad<\/key>\n    <false\/>/' "$PLIST_FILE"
+        echo "Service disabled successfully."
+    else
+        echo "Error: Service plist file not found. Please run the install-mac.sh script first."
+        exit 1
+    fi
+}
+
+# Function to check service status
+check_status() {
+    if launchctl list | grep -q "com.goes-wallpaper"; then
+        echo "GOES Wallpaper service is running."
+    else
+        echo "GOES Wallpaper service is not running."
+    fi
+}
+
+# Parse command-line arguments
+if [ $# -gt 0 ]; then
+    case "$1" in
+        start)
+            start_service
+            exit 0
+            ;;
+        stop)
+            stop_service
+            exit 0
+            ;;
+        enable)
+            enable_service
+            exit 0
+            ;;
+        disable)
+            disable_service
+            exit 0
+            ;;
+        status)
+            check_status
+            exit 0
+            ;;
+        help|--help|-h)
+            usage
+            ;;
+        *)
+            echo "Unknown command: $1"
+            usage
+            ;;
+    esac
+fi
+
+# If no arguments are provided, run the service in the foreground
+
+set_wallpaper() {
+    wallpaper_path="$1"
+    # macOS command to set desktop wallpaper
+    echo "Attempting to set desktop wallpaper to $wallpaper_path"
+
+    # Try multiple methods to set the wallpaper
+
+    # Method 1: Using System Events (preferred for newer macOS)
+    echo "Method 1: Using System Events"
+    output=$(osascript -e "tell application \"System Events\" to tell every desktop to set picture to POSIX file \"$wallpaper_path\"" 2>&1)
+    exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        echo "Desktop wallpaper set successfully using System Events"
+    else
+        echo "Error setting desktop wallpaper using System Events: $output"
+
+        # Method 2: Using Finder (for older macOS)
+        echo "Method 2: Using Finder"
+        alt_output=$(osascript -e "tell application \"Finder\" to set desktop picture to POSIX file \"$wallpaper_path\"" 2>&1)
+        alt_exit_code=$?
+
+        if [ $alt_exit_code -eq 0 ]; then
+            echo "Desktop wallpaper set successfully using Finder"
+        else
+            echo "Error setting desktop wallpaper using Finder: $alt_output"
+
+            # Method 3: Using sqlite3 to directly update the desktop database
+            echo "Method 3: Using sqlite3"
+
+            # Get the current user
+            current_user=$(whoami)
+
+            # Path to the desktop database
+            db_path="/Users/$current_user/Library/Application Support/Dock/desktoppicture.db"
+
+            if [ -f "$db_path" ]; then
+                echo "Found desktop database at $db_path"
+
+                # Try to update the database
+                sqlite3_output=$(sqlite3 "$db_path" "update data set value = '$wallpaper_path'" 2>&1)
+                sqlite3_exit_code=$?
+
+                if [ $sqlite3_exit_code -eq 0 ]; then
+                    echo "Desktop database updated successfully"
+
+                    # Restart the Dock to apply changes
+                    killall Dock
+                    echo "Restarted Dock to apply changes"
+                else
+                    echo "Error updating desktop database: $sqlite3_output"
+                fi
+            else
+                echo "Desktop database not found at $db_path"
+            fi
+        fi
+    fi
+}
+
+set_lockscreen() {
+    lockscreen_path="$1"
+    # macOS command to set lockscreen wallpaper
+    # This requires sqlite3 to modify the database where lockscreen image is stored
+    # First, copy the image to the system's lockscreen image location
+    cp "$lockscreen_path" "$HOME/Library/Caches/com.apple.desktop.admin.png"
+    echo "Lockscreen background set to $lockscreen_path"
+}
+
+
+check_battery_status() {
+    # Check if on battery and in low power mode
+    # pmset -g batt returns battery status information
+    battery_info=$(pmset -g batt)
+
+    # Check if AC power is connected
+    if echo "$battery_info" | grep -q "AC Power"; then
+        # AC power is connected
+        return 0
+    else
+        # On battery, check if low power mode is enabled
+        if echo "$battery_info" | grep -q "lowpowermode 1"; then
+            # Low power mode is enabled
+            return 1
+        else
+            # On battery but not in low power mode
+            return 0
+        fi
+    fi
+}
+
+while true; do
+    # Check battery status
+    check_battery_status
+    battery_status=$?
+
+    if [ $battery_status -eq 1 ]; then
+        echo "On battery with low power mode enabled. Waiting..."
+        sleep "$INTERVAL"
+        continue
+    fi
+
+    # Call the fetch script to download images
+    echo "Calling fetch script: $FETCH_SCRIPT"
+    downloaded_files_str=$("$FETCH_SCRIPT")
+
+    # Check if we got any output
+    if [ -z "$downloaded_files_str" ]; then
+        echo "No output from fetch script"
+        sleep "$INTERVAL"
+        continue
+    fi
+
+    echo "Downloaded files string: '$downloaded_files_str'"
+
+    # Convert the space-separated string to an array
+    IFS=' ' read -r -a downloaded_files <<< "$downloaded_files_str"
+    echo "Number of downloaded files: ${#downloaded_files[@]}"
+
+    # Print each file for debugging
+    for i in "${!downloaded_files[@]}"; do
+        echo "File $i: '${downloaded_files[$i]}'"
+    done
+
+    if [ ${#downloaded_files[@]} -gt 0 ]; then
+        # Generate a random index
+        rnd=$(jot -r 1 0 $((${#downloaded_files[@]}-1)))
+        echo "Selected random index: $rnd"
+
+        selected_file="${downloaded_files[$rnd]}"
+        echo "Setting wallpaper to: '$selected_file'"
+
+        # Check if file exists and is readable
+        if [ -f "$selected_file" ] && [ -r "$selected_file" ]; then
+            echo "File exists and is readable"
+            set_wallpaper "$selected_file"
+            set_lockscreen "$selected_file"
+        else
+            echo "Error: Selected file '$selected_file' does not exist or is not readable"
+            echo "Current directory: $(pwd)"
+            echo "Listing directory containing the file:"
+            dir_name=$(dirname "$selected_file")
+            if [ -d "$dir_name" ]; then
+                ls -la "$dir_name"
+            else
+                echo "Directory $dir_name does not exist"
+            fi
+        fi
+    else
+        echo "No new files downloaded"
+    fi
+
+    sleep "$INTERVAL"
+done

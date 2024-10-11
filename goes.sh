@@ -1,25 +1,111 @@
 #!/bin/bash
 
-# Directory to save the images
-SAVE_DIR="$(pwd)/.goes-wallpaper-data"
-
-# Ensure the directory exists
-mkdir -p "$SAVE_DIR"
-
-# set as false to keep only current file
-KEEP_FILES=true
-
-# Array of configurations for the files to download
-declare -a CONFIGS=(
-  #PAGE URL; RESOLUTION WANTED (MUST BE THE FIRST ON THE PAGE); NAME TO SAVE;
-  "https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G16 10848 FD"
-  "https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G16&sector=ssa 7200 SSA"
-)
-
-rm "$SAVE_DIR/*last-url.txt"
+# Path to the fetching script
+FETCH_SCRIPT="$(dirname "$0")/goes-fetch.sh"
 
 # Interval in seconds (10 minutes)
 INTERVAL=300
+
+# Systemd service file path
+SERVICE_FILE="$HOME/.config/systemd/user/goes.service"
+
+# Function to display usage information
+usage() {
+    echo "Usage: $0 [command]"
+    echo "Commands:"
+    echo "  start    - Start the wallpaper service"
+    echo "  stop     - Stop the wallpaper service"
+    echo "  enable   - Enable the wallpaper service to start at login"
+    echo "  disable  - Disable the wallpaper service from starting at login"
+    echo "  status   - Check if the wallpaper service is running"
+    echo "  (no args)- Run the wallpaper service in the foreground"
+    exit 1
+}
+
+# Function to start the service
+start_service() {
+    echo "Starting GOES Wallpaper service..."
+    systemctl --user start goes.service
+    if [ $? -eq 0 ]; then
+        echo "Service started successfully."
+    else
+        echo "Service failed to start. Check the logs with 'journalctl --user -u goes.service'"
+    fi
+}
+
+# Function to stop the service
+stop_service() {
+    echo "Stopping GOES Wallpaper service..."
+    systemctl --user stop goes.service
+    if [ $? -eq 0 ]; then
+        echo "Service stopped successfully."
+    else
+        echo "Service failed to stop or is not running."
+    fi
+}
+
+# Function to enable the service
+enable_service() {
+    echo "Enabling GOES Wallpaper service to start at login..."
+    systemctl --user enable goes.service
+    if [ $? -eq 0 ]; then
+        echo "Service enabled successfully."
+    else
+        echo "Failed to enable service. Make sure the service file exists."
+        echo "If not, run the install.sh script first."
+    fi
+}
+
+# Function to disable the service
+disable_service() {
+    echo "Disabling GOES Wallpaper service from starting at login..."
+    systemctl --user disable goes.service
+    if [ $? -eq 0 ]; then
+        echo "Service disabled successfully."
+    else
+        echo "Failed to disable service or service is not enabled."
+    fi
+}
+
+# Function to check service status
+check_status() {
+    systemctl --user status goes.service
+}
+
+# Parse command-line arguments
+if [ $# -gt 0 ]; then
+    case "$1" in
+        start)
+            start_service
+            exit 0
+            ;;
+        stop)
+            stop_service
+            exit 0
+            ;;
+        enable)
+            enable_service
+            exit 0
+            ;;
+        disable)
+            disable_service
+            exit 0
+            ;;
+        status)
+            check_status
+            exit 0
+            ;;
+        help|--help|-h)
+            usage
+            ;;
+        *)
+            echo "Unknown command: $1"
+            usage
+            ;;
+    esac
+fi
+
+# If no arguments are provided, run the service in the foreground
 
 set_wallpaper() {
     wallpaper_path="$1"
@@ -67,31 +153,6 @@ set_wallpaper() {
     fi
 }
 
-function download_image(){
-  URL="$1"
-  LAST_URL_FILE="$2"
-  NAME="$3"
-  TARGET="$4"
-
-  PAGE_FILE="$SAVE_DIR/page.html"
-  curl -s "$URL" > "$PAGE_FILE"
-  URL_ADDRESS=$(cat "$PAGE_FILE" | grep "$TARGET" | head -n 1 | cut -d "=" -f 4 | cut -d "'" -f 2)
-
-  touch "$LAST_URL_FILE"
-  LAST_URL=$(cat "$LAST_URL_FILE" 2>/dev/null)
-
-  if [ "$URL_ADDRESS" != "$LAST_URL" ]; then
-      DATE_PREFIX=""
-      if [ "$KEEP_FILES" ]; then
-         DATE_PREFIX="_$(date +%Y%m%d%H%M%S)"
-      fi
-      FILE_NAME="$SAVE_DIR/${NAME}${DATE_PREFIX}.jpg"
-      curl "$URL_ADDRESS" -o "$FILE_NAME"
-
-      echo "$URL_ADDRESS" > "$LAST_URL_FILE"
-      echo "$FILE_NAME"
-  fi
-}
 
 while true; do
     ac_adapter=$(acpi -a | cut -d' ' -f3 | cut -d- -f1)
@@ -102,16 +163,11 @@ while true; do
         continue
     fi
 
-    echo "downloading images..."
-    downloaded_files=()
+    # Call the fetch script to download images
+    downloaded_files_str=$("$FETCH_SCRIPT")
 
-    for config in "${CONFIGS[@]}"; do
-        IFS=' ' read -r -a params <<< "$config"
-        file=$(download_image "${params[0]}" "$SAVE_DIR/${params[2]}-last_url.txt" "${params[2]}" "${params[1]}")
-        if [ -n "$file" ]; then
-            downloaded_files+=("$file")
-        fi
-    done
+    # Convert the space-separated string to an array
+    IFS=' ' read -r -a downloaded_files <<< "$downloaded_files_str"
 
     if [ ${#downloaded_files[@]} -gt 0 ]; then
         rnd=$(shuf -i 0-$((${#downloaded_files[@]}-1)) -n 1)

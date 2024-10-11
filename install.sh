@@ -10,6 +10,7 @@ CURRENT_DIR=$(pwd)
 SCRIPT_FILE="$CURRENT_DIR/goes.sh"
 
 chmod +x "$SCRIPT_FILE"
+chmod +x "$(dirname "$SCRIPT_FILE")/goes-fetch.sh"
 
 mkdir -p "$HOME/.config/systemd/user/"
 cp "$SERVICE_TEMPLATE" "$SERVICE_FILE"
