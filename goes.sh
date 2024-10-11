@@ -13,7 +13,7 @@ KEEP_FILES=true
 # Array of configurations for the files to download
 declare -a CONFIGS=(
   #PAGE URL; RESOLUTION WANTED (MUST BE THE FIRST ON THE PAGE); NAME TO SAVE;
-  "https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G16 5424 FD"
+  "https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G16 10848 FD"
   "https://www.star.nesdis.noaa.gov/GOES/sector.php?sat=G16&sector=ssa 7200 SSA"
 )
 
