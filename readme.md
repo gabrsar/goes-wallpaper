@@ -6,11 +6,12 @@ Data from NOAA satelittes GOES-16 / GOES-18. Those satelites are in a synchronou
 
 The project is organized into several scripts:
 
-- **goes-fetch.sh**: Common script that handles downloading satellite images
-- **goes.sh**: Linux-specific script that sets the wallpaper
-- **goes-mac.sh**: macOS-specific script that sets both wallpaper and lockscreen
-- **install.sh**: Installation script for Linux
-- **install-mac.sh**: Installation script for macOS
+- **goes-fetch**: Common script that handles downloading satellite images
+- **goes**: Linux-specific script that sets the wallpaper
+- **goes-mac**: macOS-specific script that sets both wallpaper and lockscreen
+- **install**: Installation script for Linux and macOS
+- **install-mac**: macOS-specific installation script
+- **install-linux**: Linux-specific installation script
 
 ## More information
 https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G16
@@ -18,23 +19,16 @@ https://www.star.nesdis.noaa.gov/GOES/index.php
 
 ## Installation
 
-### Linux
+### Linux and macOS
 ```bash
 # Make the install script executable
-chmod +x install.sh
+chmod +x install
 
 # Run the installation script
-./install.sh
+./install
 ```
 
-### macOS
-```bash
-# Make the macOS install script executable
-chmod +x install-mac.sh
-
-# Run the macOS installation script
-./install-mac.sh
-```
+The installation script will detect your operating system and run the appropriate installation steps. It will also ask if you want to add the current directory to your PATH variable in your shell configuration file (.bashrc or .zshrc).
 
 The macOS version will:
 - Change your desktop wallpaper with real-time Earth images
@@ -44,59 +38,83 @@ The macOS version will:
 
 ## Service Management
 
-Both the Linux and macOS versions now include command-line interfaces for managing the service.
+Both the Linux and macOS versions include command-line interfaces for managing the service. If you added the directory to your PATH during installation, you can use the `goes` command from anywhere. Otherwise, you'll need to run the commands from the installation directory.
 
-### macOS
+### Using the `goes` command
 
 ```bash
 # Start the service
-./goes-mac.sh start
+goes start
 
 # Stop the service
-./goes-mac.sh stop
+goes stop
 
 # Enable the service to start at login
-./goes-mac.sh enable
+goes enable
 
 # Disable the service from starting at login
-./goes-mac.sh disable
+goes disable
 
 # Check if the service is running
-./goes-mac.sh status
+goes status
 
 # Run the service in the foreground (for debugging)
-./goes-mac.sh
+goes
 ```
 
-### Linux
+### Alternative: Using the scripts directly
+
+#### macOS
 
 ```bash
 # Start the service
-./goes.sh start
+./goes-mac start
 
 # Stop the service
-./goes.sh stop
+./goes-mac stop
 
 # Enable the service to start at login
-./goes.sh enable
+./goes-mac enable
 
 # Disable the service from starting at login
-./goes.sh disable
+./goes-mac disable
 
 # Check if the service is running
-./goes.sh status
+./goes-mac status
 
 # Run the service in the foreground (for debugging)
-./goes.sh
+./goes-mac
+```
+
+#### Linux
+
+```bash
+# Start the service
+./goes start
+
+# Stop the service
+./goes stop
+
+# Enable the service to start at login
+./goes enable
+
+# Disable the service from starting at login
+./goes disable
+
+# Check if the service is running
+./goes status
+
+# Run the service in the foreground (for debugging)
+./goes
 ```
 
 If you encounter issues when trying to manage the service, try these steps:
 
-1. Make sure you're running the commands from the same directory where the scripts are located
-2. Make sure the scripts are executable (`chmod +x goes-mac.sh` or `chmod +x goes.sh`)
+1. Make sure you're running the commands from the same directory where the scripts are located (unless you added the directory to your PATH)
+2. Make sure the scripts are executable (`chmod +x goes-mac` or `chmod +x goes`)
 3. For macOS: Check the log file at `~/Library/Logs/goes-wallpaper.log` for any errors
 4. For Linux: Check the logs with `journalctl --user -u goes.service`
-5. Reinstall the service by running the appropriate installation script again
+5. Reinstall the service by running the installation script again
 
 ## Examples
 ![Exemple 1](./example1.png)

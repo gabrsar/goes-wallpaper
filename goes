@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Path to the fetching script
-FETCH_SCRIPT="$(dirname "$0")/goes-fetch.sh"
+FETCH_SCRIPT="$(dirname "$0")/goes-fetch"
 
 # Interval in seconds (10 minutes)
 INTERVAL=300
@@ -10,7 +10,7 @@ INTERVAL=300
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
     OS_TYPE="mac"
-    MAC_SCRIPT="$(dirname "$0")/goes-mac.sh"
+    MAC_SCRIPT="$(dirname "$0")/goes-mac"
     PLIST_FILE="$HOME/Library/LaunchAgents/com.goes-wallpaper.plist"
 else
     # Linux
@@ -96,7 +96,7 @@ enable_service() {
             echo "Service enabled successfully."
         else
             echo "Failed to enable service. Make sure the service file exists."
-            echo "If not, run the install.sh script first."
+            echo "If not, run the install script first."
         fi
     fi
 }

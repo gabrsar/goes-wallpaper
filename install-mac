@@ -2,7 +2,7 @@
 
 # Define paths
 CURRENT_DIR=$(pwd)
-SCRIPT_FILE="$CURRENT_DIR/goes-mac.sh"
+SCRIPT_FILE="$CURRENT_DIR/goes-mac"
 PLIST_FILE="$HOME/Library/LaunchAgents/com.goes-wallpaper.plist"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 

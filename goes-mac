@@ -2,7 +2,7 @@
 
 # Path to the fetching script - use absolute path for LaunchAgent compatibility
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FETCH_SCRIPT="$SCRIPT_DIR/goes-fetch.sh"
+FETCH_SCRIPT="$SCRIPT_DIR/goes-fetch"
 
 # Interval in seconds (5 minutes)
 INTERVAL=300
@@ -65,7 +65,7 @@ enable_service() {
             echo "Service enabled successfully."
         fi
     else
-        echo "Error: Service plist file not found. Please run the install-mac.sh script first."
+        echo "Error: Service plist file not found. Please run the install-mac script first."
         exit 1
     fi
 }
@@ -81,7 +81,7 @@ disable_service() {
         sed -i '' 's/<key>RunAtLoad<\/key>.*/<key>RunAtLoad<\/key>\n    <false\/>/' "$PLIST_FILE"
         echo "Service disabled successfully."
     else
-        echo "Error: Service plist file not found. Please run the install-mac.sh script first."
+        echo "Error: Service plist file not found. Please run the install-mac script first."
         exit 1
     fi
 }
@@ -231,75 +231,6 @@ if [ $# -gt 0 ]; then
 fi
 
 # If no arguments are provided, run the service in the foreground
-
-set_wallpaper() {
-    wallpaper_path="$1"
-    # macOS command to set desktop wallpaper
-    echo "Attempting to set desktop wallpaper to $wallpaper_path"
-
-    # Try multiple methods to set the wallpaper
-
-    # Method 1: Using System Events (preferred for newer macOS)
-    echo "Method 1: Using System Events"
-    output=$(osascript -e "tell application \"System Events\" to tell every desktop to set picture to POSIX file \"$wallpaper_path\"" 2>&1)
-    exit_code=$?
-
-    if [ $exit_code -eq 0 ]; then
-        echo "Desktop wallpaper set successfully using System Events"
-    else
-        echo "Error setting desktop wallpaper using System Events: $output"
-
-        # Method 2: Using Finder (for older macOS)
-        echo "Method 2: Using Finder"
-        alt_output=$(osascript -e "tell application \"Finder\" to set desktop picture to POSIX file \"$wallpaper_path\"" 2>&1)
-        alt_exit_code=$?
-
-        if [ $alt_exit_code -eq 0 ]; then
-            echo "Desktop wallpaper set successfully using Finder"
-        else
-            echo "Error setting desktop wallpaper using Finder: $alt_output"
-
-            # Method 3: Using sqlite3 to directly update the desktop database
-            echo "Method 3: Using sqlite3"
-
-            # Get the current user
-            current_user=$(whoami)
-
-            # Path to the desktop database
-            db_path="/Users/$current_user/Library/Application Support/Dock/desktoppicture.db"
-
-            if [ -f "$db_path" ]; then
-                echo "Found desktop database at $db_path"
-
-                # Try to update the database
-                sqlite3_output=$(sqlite3 "$db_path" "update data set value = '$wallpaper_path'" 2>&1)
-                sqlite3_exit_code=$?
-
-                if [ $sqlite3_exit_code -eq 0 ]; then
-                    echo "Desktop database updated successfully"
-
-                    # Restart the Dock to apply changes
-                    killall Dock
-                    echo "Restarted Dock to apply changes"
-                else
-                    echo "Error updating desktop database: $sqlite3_output"
-                fi
-            else
-                echo "Desktop database not found at $db_path"
-            fi
-        fi
-    fi
-}
-
-set_lockscreen() {
-    lockscreen_path="$1"
-    # macOS command to set lockscreen wallpaper
-    # This requires sqlite3 to modify the database where lockscreen image is stored
-    # First, copy the image to the system's lockscreen image location
-    cp "$lockscreen_path" "$HOME/Library/Caches/com.apple.desktop.admin.png"
-    echo "Lockscreen background set to $lockscreen_path"
-}
-
 
 check_battery_status() {
     # Check if on battery and in low power mode
