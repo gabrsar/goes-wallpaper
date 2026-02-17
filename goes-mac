@@ -88,70 +88,86 @@ disable_service() {
 
 set_wallpaper() {
     wallpaper_path="$1"
-    # macOS command to set desktop wallpaper
     echo "Attempting to set desktop wallpaper to $wallpaper_path"
 
-    # Try multiple methods to set the wallpaper
+    # Method 1 (preferred): Using Swift NSWorkspace API — most reliable on macOS 14+ (Sonoma/Sequoia)
+    echo "Method 1: Using NSWorkspace (Swift)"
+    swift_output=$(swift - "$wallpaper_path" 2>&1 <<'SWIFT'
+import AppKit
 
-    # Method 1: Using System Events (preferred for newer macOS)
-    echo "Method 1: Using System Events"
+guard CommandLine.arguments.count > 1 else {
+    fputs("Usage: swift script.swift <image_path>\n", stderr)
+    exit(1)
+}
+let path = CommandLine.arguments[1]
+let url = URL(fileURLWithPath: path)
+let workspace = NSWorkspace.shared
+var success = false
+for screen in NSScreen.screens {
+    do {
+        try workspace.setDesktopImageURL(url, for: screen, options: [:])
+        success = true
+    } catch {
+        fputs("Error setting wallpaper for screen: \(error)\n", stderr)
+    }
+}
+exit(success ? 0 : 1)
+SWIFT
+    )
+    swift_exit=$?
+
+    if [ $swift_exit -eq 0 ]; then
+        echo "Desktop wallpaper set successfully using NSWorkspace"
+        return 0
+    else
+        echo "NSWorkspace method failed: $swift_output"
+    fi
+
+    # Method 2: Using System Events via osascript (works on macOS 12-14 with Automation permissions)
+    echo "Method 2: Using System Events"
     output=$(osascript -e "tell application \"System Events\" to tell every desktop to set picture to POSIX file \"$wallpaper_path\"" 2>&1)
     exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
         echo "Desktop wallpaper set successfully using System Events"
+        return 0
     else
         echo "Error setting desktop wallpaper using System Events: $output"
+    fi
 
-        # Method 2: Using Finder (for older macOS)
-        echo "Method 2: Using Finder"
-        alt_output=$(osascript -e "tell application \"Finder\" to set desktop picture to POSIX file \"$wallpaper_path\"" 2>&1)
-        alt_exit_code=$?
+    # Method 3: Using Finder (legacy fallback for older macOS)
+    echo "Method 3: Using Finder"
+    alt_output=$(osascript -e "tell application \"Finder\" to set desktop picture to POSIX file \"$wallpaper_path\"" 2>&1)
+    alt_exit_code=$?
 
-        if [ $alt_exit_code -eq 0 ]; then
-            echo "Desktop wallpaper set successfully using Finder"
-        else
-            echo "Error setting desktop wallpaper using Finder: $alt_output"
-
-            # Method 3: Using sqlite3 to directly update the desktop database
-            echo "Method 3: Using sqlite3"
-
-            # Get the current user
-            current_user=$(whoami)
-
-            # Path to the desktop database
-            db_path="/Users/$current_user/Library/Application Support/Dock/desktoppicture.db"
-
-            if [ -f "$db_path" ]; then
-                echo "Found desktop database at $db_path"
-
-                # Try to update the database
-                sqlite3_output=$(sqlite3 "$db_path" "update data set value = '$wallpaper_path'" 2>&1)
-                sqlite3_exit_code=$?
-
-                if [ $sqlite3_exit_code -eq 0 ]; then
-                    echo "Desktop database updated successfully"
-
-                    # Restart the Dock to apply changes
-                    killall Dock
-                    echo "Restarted Dock to apply changes"
-                else
-                    echo "Error updating desktop database: $sqlite3_output"
-                fi
-            else
-                echo "Desktop database not found at $db_path"
-            fi
-        fi
+    if [ $alt_exit_code -eq 0 ]; then
+        echo "Desktop wallpaper set successfully using Finder"
+        return 0
+    else
+        echo "Error setting desktop wallpaper using Finder: $alt_output"
+        echo "All wallpaper methods failed. Check that the image exists and Automation permissions are granted."
     fi
 }
 
 set_lockscreen() {
     lockscreen_path="$1"
-    # macOS command to set lockscreen wallpaper
-    # This requires sqlite3 to modify the database where lockscreen image is stored
-    # First, copy the image to the system's lockscreen image location
-    cp "$lockscreen_path" "$HOME/Library/Caches/com.apple.desktop.admin.png"
-    echo "Lockscreen background set to $lockscreen_path"
+    # On macOS Sonoma (14+) and Sequoia (15+), the lock screen automatically uses
+    # the same image as the desktop wallpaper, so no separate action is needed.
+    # On older macOS, we can try the legacy method but it's unreliable.
+    macos_version=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
+    if [ -n "$macos_version" ] && [ "$macos_version" -ge 14 ] 2>/dev/null; then
+        echo "Lock screen follows desktop wallpaper on macOS $macos_version (no separate action needed)"
+    else
+        # Legacy attempt for older macOS — may not work on all versions
+        lockscreen_dest="/Library/Caches/Desktop Pictures"
+        if [ -d "$lockscreen_dest" ]; then
+            sudo cp "$lockscreen_path" "$lockscreen_dest/lockscreen.png" 2>/dev/null && \
+                echo "Lockscreen background set to $lockscreen_path" || \
+                echo "Could not set lockscreen (may need sudo). Lock screen may follow desktop wallpaper anyway."
+        else
+            echo "Lock screen cache directory not found. Lock screen may follow desktop wallpaper."
+        fi
+    fi
 }
 
 # Function to check service status
@@ -266,52 +282,25 @@ while true; do
 
     # Call the fetch script to download images
     echo "Calling fetch script: $FETCH_SCRIPT"
-    downloaded_files_str=$("$FETCH_SCRIPT")
+    downloaded_file=$("$FETCH_SCRIPT")
+    fetch_exit=$?
 
-    # Check if we got any output
-    if [ -z "$downloaded_files_str" ]; then
-        echo "No output from fetch script"
+    # Check if fetch succeeded (errors go to stderr, only filepath goes to stdout)
+    if [ $fetch_exit -ne 0 ] || [ -z "$downloaded_file" ]; then
+        echo "Fetch script failed or returned no file (exit code: $fetch_exit)"
         sleep "$INTERVAL"
         continue
     fi
 
-    echo "Downloaded files string: '$downloaded_files_str'"
+    echo "Downloaded file: '$downloaded_file'"
 
-    # Convert the space-separated string to an array
-    IFS=' ' read -r -a downloaded_files <<< "$downloaded_files_str"
-    echo "Number of downloaded files: ${#downloaded_files[@]}"
-
-    # Print each file for debugging
-    for i in "${!downloaded_files[@]}"; do
-        echo "File $i: '${downloaded_files[$i]}'"
-    done
-
-    if [ ${#downloaded_files[@]} -gt 0 ]; then
-        # Generate a random index
-        rnd=$(jot -r 1 0 $((${#downloaded_files[@]}-1)))
-        echo "Selected random index: $rnd"
-
-        selected_file="${downloaded_files[$rnd]}"
-        echo "Setting wallpaper to: '$selected_file'"
-
-        # Check if file exists and is readable
-        if [ -f "$selected_file" ] && [ -r "$selected_file" ]; then
-            echo "File exists and is readable"
-            set_wallpaper "$selected_file"
-            set_lockscreen "$selected_file"
-        else
-            echo "Error: Selected file '$selected_file' does not exist or is not readable"
-            echo "Current directory: $(pwd)"
-            echo "Listing directory containing the file:"
-            dir_name=$(dirname "$selected_file")
-            if [ -d "$dir_name" ]; then
-                ls -la "$dir_name"
-            else
-                echo "Directory $dir_name does not exist"
-            fi
-        fi
+    # Verify the file actually exists
+    if [ -f "$downloaded_file" ] && [ -r "$downloaded_file" ]; then
+        echo "File exists and is readable"
+        set_wallpaper "$downloaded_file"
+        set_lockscreen "$downloaded_file"
     else
-        echo "No new files downloaded"
+        echo "Error: File '$downloaded_file' does not exist or is not readable"
     fi
 
     sleep "$INTERVAL"
