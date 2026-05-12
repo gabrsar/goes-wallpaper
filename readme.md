@@ -1,3 +1,7 @@
+# TL;DR: 
+Your wallpaper become this, updated, every 30 minutes with NASA real-time images.
+![Exemple 1](./example1.png)
+
 # Real Time Earth Wallpaper
 
 Data from NOAA satelittes GOES-16 / GOES-18. Those satelites are in a synchronous orbit at 36.000 km away from Earth, so they keep stationary over same spot and send back data every 10 minutes.
@@ -117,6 +121,6 @@ If you encounter issues when trying to manage the service, try these steps:
 5. Reinstall the service by running the installation script again
 
 ## Examples
-![Exemple 1](./example1.png)
+
 ![Exemple 2](./example2.png)
 ![Exemple 3](./example3.png)
