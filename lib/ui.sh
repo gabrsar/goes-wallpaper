@@ -238,7 +238,9 @@ ui::_last_item_line() {
 
 ui::_select_interactive() {
   exec 3<"$UI_TTY"
-  local restore_trap='ui::_show_cursor; exec 3<&- 2>/dev/null'
+  # `exec 3<&- 2>/dev/null` would redirect stderr for the rest of the
+  # process; the brace group keeps the redirection temporary.
+  local restore_trap='ui::_show_cursor; { exec 3<&-; } 2>/dev/null'
   # shellcheck disable=SC2064
   trap "$restore_trap; trap - INT TERM EXIT; exit 130" INT TERM
   ui::_hide_cursor
@@ -339,7 +341,7 @@ ui::_select_interactive() {
 
   [ "$drawn" -gt 0 ] && printf '\033[%sA\033[J' "$drawn" >"$UI_TTY"
   ui::_show_cursor
-  exec 3<&- 2>/dev/null
+  { exec 3<&-; } 2>/dev/null
   trap - INT TERM
   return $status
 }

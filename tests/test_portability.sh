@@ -113,6 +113,16 @@ for pattern in 'sed -i ' 'date -d ' 'readlink -f' 'grep -P'; do
   fi
 done
 
+t::case "exec never redirects the shell's own stderr"
+# `exec 3<&- 2>/dev/null` silences every later message in the process.
+hits=$(grep -nE '(^|[;&|{(]|then|do|else)[[:space:]]*exec[[:space:]][^}]*[0-9]?>' $SHIPPED_FILES 2>/dev/null \
+       | grep -E 'exec[^}]*2>' | grep -vE '\{[[:space:]]*exec[^}]*\}[[:space:]]*2>|\([[:space:]]*exec[^)]*\)[[:space:]]*2>')
+if [ -z "$hits" ]; then
+  t::_pass "no bare 'exec ... 2>' outside a brace group or subshell"
+else
+  t::_fail "no bare 'exec ... 2>' outside a brace group or subshell" "$(printf '%s' "$hits" | head -3)"
+fi
+
 t::case "executables have a shebang and the executable bit"
 for f in bin/goes install.sh tests/run.sh; do
   head -1 "$f" | grep -q '^#!/usr/bin/env bash$' \
