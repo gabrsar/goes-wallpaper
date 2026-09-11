@@ -114,7 +114,7 @@ config::set() {
 # Loads config into CFG_* variables. Missing file is not an error: callers use
 # config::is_configured to decide whether setup has been run.
 config::load() {
-  local file="${1:-$GOES_CONFIG_FILE}"
+  local file="$GOES_CONFIG_FILE"
   local key
   for key in $GOES_CONFIG_KEYS; do
     eval "CFG_$key=\$(config::_default_for \"\$key\")"
@@ -159,7 +159,7 @@ config::load() {
 }
 
 config::save() {
-  local file="${1:-$GOES_CONFIG_FILE}"
+  local file="$GOES_CONFIG_FILE"
   local dir tmp
   dir="$(dirname "$file")"
   mkdir -p "$dir" || { goes::err "cannot create $dir"; return 1; }
