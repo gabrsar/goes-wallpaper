@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="632" height="440" viewBox="0 0 632 440">
+<rect width="100%" height="100%" rx="10" fill="#0d1117"/>
+<circle cx="20" cy="18" r="6" fill="#ff5f57"/><circle cx="40" cy="18" r="6" fill="#febc2e"/><circle cx="60" cy="18" r="6" fill="#28c840"/>
+<text x="316" y="22" fill="#8b949e" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" text-anchor="middle">goes setup</text>
+<g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,Liberation Mono,monospace" font-size="14" xml:space="preserve">
+<text x="18.0" y="78" fill="#39c5cf" font-weight="700" textLength="67.2" lengthAdjust="spacing">Step 2/5</text>
+<text x="102.0" y="78" fill="#e6edf3" font-weight="700" textLength="151.2" lengthAdjust="spacing">Pick an image size</text>
+<text x="18.0" y="98" fill="#3fb950">✔</text>
+<text x="34.8" y="98" fill="#e6edf3" textLength="344.4" lengthAdjust="spacing">Sizes available (your display: 3456x2234)</text>
+<text x="18.0" y="118" fill="#3fb950">✔</text>
+<text x="34.8" y="118" fill="#e6edf3" textLength="184.8" lengthAdjust="spacing">Download sizes checked</text>
+<text x="18.0" y="138" fill="#e6edf3" font-weight="700" textLength="260.4" lengthAdjust="spacing">How large should each frame be?</text>
+<text x="18.0" y="158" fill="#8b949e" textLength="420.0" lengthAdjust="spacing">Largest is sharpest; it downloads once per refresh</text>
+<text x="34.8" y="218" fill="#58a6ff" font-weight="700" textLength="92.4" lengthAdjust="spacing">Recommended</text>
+<text x="43.2" y="238" fill="#39c5cf">▸</text>
+<text x="60.0" y="238" fill="#39c5cf" font-weight="700" textLength="142.8" lengthAdjust="spacing">Largest available</text>
+<text x="328.8" y="238" fill="#8b949e" textLength="109.2" lengthAdjust="spacing">now 7200x4320</text>
+<text x="446.4" y="238" fill="#8b949e">·</text>
+<text x="463.2" y="238" fill="#8b949e" textLength="58.8" lengthAdjust="spacing">31.1 MP</text>
+<text x="530.4" y="238" fill="#8b949e">·</text>
+<text x="547.2" y="238" fill="#8b949e" textLength="58.8" lengthAdjust="spacing">12.8 MB</text>
+<text x="34.8" y="258" fill="#58a6ff" font-weight="700" textLength="84.0" lengthAdjust="spacing">Fixed size</text>
+<text x="60.0" y="278" fill="#e6edf3" textLength="75.6" lengthAdjust="spacing">7200x4320</text>
+<text x="328.8" y="278" fill="#8b949e" textLength="58.8" lengthAdjust="spacing">31.1 MP</text>
+<text x="396.0" y="278" fill="#8b949e">·</text>
+<text x="412.8" y="278" fill="#8b949e" textLength="58.8" lengthAdjust="spacing">12.8 MB</text>
+<text x="60.0" y="298" fill="#e6edf3" textLength="75.6" lengthAdjust="spacing">3600x2160</text>
+<text x="152.4" y="298" fill="#e6edf3">·</text>
+<text x="169.2" y="298" fill="#e6edf3" textLength="151.2" lengthAdjust="spacing">fills your display</text>
+<text x="328.8" y="298" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">7.7 MP</text>
+<text x="387.6" y="298" fill="#8b949e">·</text>
+<text x="404.4" y="298" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">4.1 MB</text>
+<text x="60.0" y="318" fill="#e6edf3" textLength="75.6" lengthAdjust="spacing">1800x1080</text>
+<text x="328.8" y="318" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">1.9 MP</text>
+<text x="387.6" y="318" fill="#8b949e">·</text>
+<text x="404.4" y="318" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">1.2 MB</text>
+<text x="60.0" y="338" fill="#e6edf3" textLength="58.8" lengthAdjust="spacing">900x540</text>
+<text x="328.8" y="338" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">0.4 MP</text>
+<text x="387.6" y="338" fill="#8b949e">·</text>
+<text x="404.4" y="338" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">386 KB</text>
+<text x="60.0" y="358" fill="#e6edf3" textLength="58.8" lengthAdjust="spacing">450x270</text>
+<text x="328.8" y="358" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">0.1 MP</text>
+<text x="387.6" y="358" fill="#8b949e">·</text>
+<text x="404.4" y="358" fill="#8b949e" textLength="50.4" lengthAdjust="spacing">116 KB</text>
+<text x="34.8" y="418" fill="#8b949e">↑</text>
+<text x="43.2" y="418" fill="#8b949e">↓</text>
+<text x="60.0" y="418" fill="#8b949e" textLength="33.6" lengthAdjust="spacing">move</text>
+<text x="110.4" y="418" fill="#8b949e">·</text>
+<text x="135.6" y="418" fill="#8b949e" textLength="100.8" lengthAdjust="spacing">enter select</text>
+<text x="253.2" y="418" fill="#8b949e">·</text>
+<text x="278.4" y="418" fill="#8b949e" textLength="67.2" lengthAdjust="spacing">/ filter</text>
+<text x="362.4" y="418" fill="#8b949e">·</text>
+<text x="387.6" y="418" fill="#8b949e" textLength="67.2" lengthAdjust="spacing">q cancel</text>
+</g></svg>

@@ -167,7 +167,7 @@ EOT
     [ -z "$res" ] && continue
     label="$res"
     if [ "$screen_w" -gt 0 ] && [ "$res" = "$recommended" ]; then
-      label="$res  $GOES_GLYPH_DOT smallest that fills your display"
+      label="$res  $GOES_GLYPH_DOT fills your display"
     fi
     UI_ITEMS[$n]="$label"
     UI_HINTS[$n]="$(setup::_res_hint "$res" "$sizes")"
