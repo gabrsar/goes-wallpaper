@@ -243,6 +243,13 @@ config::migrate_legacy() {
   return 0
 }
 
+config::remove_legacy() {
+  local base="${XDG_CONFIG_HOME:-$HOME/.config}" f
+  for f in $GOES_LEGACY_FILES; do
+    rm -f "$base/$f"
+  done
+}
+
 config::archive_legacy() {
   local base="${XDG_CONFIG_HOME:-$HOME/.config}" f dest="$GOES_CONFIG_DIR/legacy-v1"
   config::legacy_present || return 0

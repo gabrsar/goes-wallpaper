@@ -309,6 +309,7 @@ cmd::uninstall() {
   goes::say "  $GOES_GLYPH_DOT the '$GOES_PROG' command"
   if [ "$purge" -eq 1 ]; then
     goes::say "  $GOES_GLYPH_DOT your settings ($GOES_CONFIG_DIR)"
+    config::legacy_present && goes::say "  $GOES_GLYPH_DOT old v1 settings (${XDG_CONFIG_HOME:-$HOME/.config}/goes-*)"
     [ "$remove_source" -eq 1 ] && goes::say "  $GOES_GLYPH_DOT the program itself ($GOES_ROOT_DIR)"
   fi
   goes::say ""
@@ -338,6 +339,7 @@ cmd::uninstall() {
 
   if [ "$purge" -eq 1 ]; then
     rm -rf "$GOES_CONFIG_DIR" && goes::ok "Settings removed."
+    config::remove_legacy
   fi
   if [ "$remove_source" -eq 1 ]; then
     rm -rf "$GOES_ROOT_DIR" && goes::ok "Program removed."

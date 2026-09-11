@@ -154,8 +154,10 @@ assert_file "$UN/config/config" "settings are kept"
 
 t::case "purge never deletes a checkout the installer did not create"
 seed_uninstall
+mkdir -p "$UN/xdg"; printf 'G19\n' >"$UN/xdg/goes-sat"; printf 'ssa\n' >"$UN/xdg/goes-sector"
 out=$(un_run "$GOES_ROOT_DIR" uninstall --purge --yes)
 assert_no_file "$UN/config" "settings are removed"
+assert_no_file "$UN/xdg/goes-sat" "v1 leftovers are removed too"
 assert_file "$GOES_ROOT_DIR/bin/goes" "this development checkout is untouched"
 assert_contains "$out" "not an installer-managed copy" "the user is told why it was kept"
 
