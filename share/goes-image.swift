@@ -6,11 +6,10 @@
 // written. Exit codes: 0 ok, 64 usage, 65 unreadable image, 73 write failed.
 //
 // The caption is recognised by its shape rather than a fixed height, because
-// NOAA sizes it differently for every resolution. Scanning upward from the
-// bottom edge, a caption is exactly:
-//   near-white padding, then a band of text on white, then near-white padding,
-// all within the bottom 8% of the frame. Anything else (bright clouds, black
-// space, an all-white image) is left alone. Keep in step with image.sh.
+// NOAA sizes it differently for every resolution: white padding around a band
+// of text, within the bottom 8% of the frame. Anything else (bright clouds,
+// black space, an all-white image) is left alone. The rule is shared with
+// image::caption_rows in lib/image.sh; keep them in step.
 
 import CoreGraphics
 import Foundation
@@ -57,10 +56,25 @@ func bottomProfile(_ image: CGImage, band: Int) -> [Double]? {
 }
 
 /// Rows occupied by the caption, or 0 when the bottom does not look like one.
+/// Mirrors image::caption_rows in lib/image.sh: read upward while rows are at
+/// least 30% white, and cut at the topmost padding row of that run, provided
+/// there is text below it.
 func captionHeight(_ profile: [Double]) -> Int {
     let limit = profile.count
-    var k = 0
     guard limit > 0, profile[0] >= padFraction else { return 0 }
+    var run = 0
+    while run < limit && profile[run] >= textFraction { run += 1 }
+    if run >= limit { return strictCaptionHeight(profile) }
+    guard let top = (0..<run).last(where: { profile[$0] >= padFraction }),
+          (0..<top).contains(where: { profile[$0] < padFraction }) else { return 0 }
+    return top + 1
+}
+
+/// The first padding, text, padding sequence; used when bright imagery hides
+/// the edge above the caption.
+func strictCaptionHeight(_ profile: [Double]) -> Int {
+    let limit = profile.count
+    var k = 0
     while k < limit && profile[k] >= padFraction { k += 1 }
     guard k < limit else { return 0 }
     var textRows = 0

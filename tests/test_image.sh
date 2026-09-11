@@ -17,6 +17,19 @@ assert_eq '7' "$(image::caption_rows 1000 1000 900 850 900 1000 1000 20 20 20)" 
 assert_eq '4' "$(image::caption_rows 950 300 950 950 0 0 0)" \
   "thresholds are inclusive at 95% and 30%"
 
+t::case "a text row that is itself 95% white does not end the caption early"
+# The bottom 45 rows of a real 7200x4320 frame: row 30 sits inside the text
+# band yet is 95% white. An earlier rule stopped there and left 13 rows of
+# caption on screen.
+REAL_7200=(1000 1000 1000 1000 1000 1000 1000 890 860 850 870 910 920 930 940 940
+           930 920 900 900 890 900 910 910 920 930 930 910 920 910 950 940 900 900
+           910 930 990 990 1000 1000 1000 1000 1000 1000 0 0 0 0 0 0)
+assert_eq '44' "$(image::caption_rows "${REAL_7200[@]}")" "all 44 caption rows are removed"
+
+t::case "bright imagery right above the caption is not cropped"
+assert_eq '3' "$(image::caption_rows 1000 900 1000 600 600 100 0)" \
+  "clouds above the top padding stay"
+
 t::case "anything else is left alone"
 assert_eq '0' "$(image::caption_rows 1000 1000 1000 1000 1000 1000)" \
   "an all-white bottom (no text band, no edge) is not a caption"

@@ -3,11 +3,11 @@
 #
 # The caption is recognised by its shape, not a fixed height, because NOAA
 # sizes it differently for every resolution (14 px at 450x270, 44 px at
-# 7200x4320) and the two largest full-disk frames have none at all. Reading
-# upward from the bottom edge a caption is exactly: near-white padding, a band
-# of text on white, near-white padding, all within the bottom 8% of the frame.
-# Anything else is left untouched. share/goes-image.swift applies the same
-# rule on macOS; ImageMagick does the pixel work elsewhere.
+# 7200x4320) and the two largest full-disk frames have none at all. It sits
+# in the bottom 8% of the frame as white padding around a band of text; see
+# image::caption_rows for the exact rule. Anything else is left untouched.
+# share/goes-image.swift applies the same rule on macOS; ImageMagick does the
+# pixel work elsewhere.
 
 [ -n "${_GOES_IMAGE_SH:-}" ] && return 0
 _GOES_IMAGE_SH=1
@@ -25,22 +25,52 @@ IMAGE_TRIM_BACKEND=''
 
 # image::caption_rows VALUE... — near-white share of each row in permille,
 # bottom row first. Prints the caption height in rows, or 0.
+#
+# Read upward while rows are at least 30% white: the whole caption qualifies
+# and the imagery right above it normally does not. The caption ends at the
+# topmost fully white (padding) row of that run, provided there is text below
+# it. Text rows can themselves be 95% white, so the first padding-like row
+# cannot be trusted as the top edge.
 image::caption_rows() {
+  local pad="$IMAGE_PAD_PERMILLE" text="$IMAGE_TEXT_PERMILLE"
+  local n=$# run=0 top=-1 i
+  local rows=("$@")
+
+  if [ "$n" -eq 0 ] || [ "${rows[0]}" -lt "$pad" ]; then printf '0'; return 0; fi
+  while [ "$run" -lt "$n" ] && [ "${rows[$run]}" -ge "$text" ]; do run=$((run + 1)); done
+
+  # Bright imagery continues past the scan limit, so the top edge is unclear:
+  # accept only an unambiguous padding/text/padding shape.
+  if [ "$run" -ge "$n" ]; then image::_caption_rows_strict "$@"; return 0; fi
+
+  i=0
+  while [ "$i" -lt "$run" ]; do
+    [ "${rows[$i]}" -ge "$pad" ] && top="$i"
+    i=$((i + 1))
+  done
+  i=0
+  while [ "$i" -lt "$top" ]; do
+    if [ "${rows[$i]}" -lt "$pad" ]; then printf '%s' "$((top + 1))"; return 0; fi
+    i=$((i + 1))
+  done
+  printf '0'
+}
+
+# The first padding, text, padding sequence from the bottom; used only when
+# the edge above the caption cannot be seen.
+image::_caption_rows_strict() {
   local pad="$IMAGE_PAD_PERMILLE" text="$IMAGE_TEXT_PERMILLE"
   local n=$# k=0 text_rows=0
   local rows=("$@")
 
-  if [ "$n" -eq 0 ] || [ "${rows[0]}" -lt "$pad" ]; then printf '0'; return 0; fi
   while [ "$k" -lt "$n" ] && [ "${rows[$k]}" -ge "$pad" ]; do k=$((k + 1)); done
   if [ "$k" -ge "$n" ]; then printf '0'; return 0; fi
-
   while [ "$k" -lt "$n" ] && [ "${rows[$k]}" -ge "$text" ] && [ "${rows[$k]}" -lt "$pad" ]; do
     k=$((k + 1)); text_rows=$((text_rows + 1))
   done
   if [ "$k" -ge "$n" ] || [ "$text_rows" -eq 0 ] || [ "${rows[$k]}" -lt "$pad" ]; then
     printf '0'; return 0
   fi
-
   while [ "$k" -lt "$n" ] && [ "${rows[$k]}" -ge "$pad" ]; do k=$((k + 1)); done
   if [ "$k" -ge "$n" ]; then printf '0'; return 0; fi
   printf '%s' "$k"
