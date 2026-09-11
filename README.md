@@ -61,12 +61,12 @@ Type to filter · full disk shows the entire hemisphere, sectors zoom in
 How large should each frame be?
 
   Recommended
-   ▸ Largest available                  now 7200x4320 · 31.1 MP · 17.8 MB
+   ▸ Largest available                             now 7200x4320 · 31.1 MP · 12.7 MB
   Fixed size
-     7200x4320                          31.1 MP · 17.8 MB
-     3600x2160  · smallest that fills…  7.7 MP · 5.6 MB
-     1800x1080                          1.9 MP · 1.6 MB
-     900x540                            0.4 MP · 506 KB
+     7200x4320                                     31.1 MP · 12.7 MB
+     3600x2160  · smallest that fills your display 7.7 MP · 4.0 MB
+     1800x1080                                     1.9 MP · 1.2 MB
+     900x540                                       0.4 MP · 382 KB
 ```
 
 After that you pick framing (fit, fill, center, stretch), how often to refresh,
@@ -224,7 +224,7 @@ it's cached for a day, and a built-in copy is used when NOAA can't be reached.
 ## Development
 
 ```bash
-tests/run.sh               # ~370 unit assertions, no network
+tests/run.sh               # ~380 assertions, no network
 tests/run.sh --network     # also downloads real frames from NOAA
 tests/run.sh config        # just one file
 /bin/bash tests/run.sh     # on macOS: run the suite under bash 3.2
