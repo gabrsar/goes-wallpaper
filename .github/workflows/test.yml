@@ -1,0 +1,43 @@
+name: test
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Weekly, so a NOAA markup or URL change is caught before users hit it.
+    - cron: "17 6 * * 1"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck and ImageMagick
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install shellcheck imagemagick
+          else
+            sudo apt-get update && sudo apt-get install -y shellcheck imagemagick
+          fi
+
+      - name: Unit tests
+        run: tests/run.sh
+
+      - name: Unit tests under the system bash (3.2 on macOS)
+        if: runner.os == 'macOS'
+        run: /bin/bash tests/run.sh
+
+      - name: Network tests against NOAA
+        run: tests/run.sh --network
+
+      - name: Installer, as users run it
+        run: |
+          cat install.sh | GOES_REPO="file://$GITHUB_WORKSPACE" \
+            GOES_INSTALL_DIR="$RUNNER_TEMP/goes" GOES_BIN_DIR="$RUNNER_TEMP/bin" \
+            GOES_NO_SETUP=1 GOES_NO_PATH=1 bash
+          "$RUNNER_TEMP/bin/goes" version

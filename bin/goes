@@ -1,0 +1,438 @@
+#!/usr/bin/env bash
+# goes — live satellite imagery as your desktop wallpaper.
+#
+# Single entry point for configuration, one-shot updates, the background
+# service and diagnostics. See `goes help`.
+
+set -uo pipefail
+
+# Resolve the real install root even when invoked through a symlink on PATH.
+goes::_resolve_root() {
+  local src="${BASH_SOURCE[0]}" dir
+  while [ -L "$src" ]; do
+    dir="$(cd -P "$(dirname "$src")" && pwd)"
+    src="$(readlink "$src")"
+    case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+  done
+  cd -P "$(dirname "$src")/.." && pwd
+}
+
+GOES_ROOT_DIR="$(goes::_resolve_root)"
+GOES_LIB_DIR="$GOES_ROOT_DIR/lib"
+GOES_SHARE_DIR="$GOES_ROOT_DIR/share"
+export GOES_ROOT_DIR GOES_LIB_DIR GOES_SHARE_DIR
+
+[ -f "$GOES_LIB_DIR/common.sh" ] || {
+  printf 'goes: installation looks broken; %s is missing\n' "$GOES_LIB_DIR/common.sh" >&2
+  exit 1
+}
+
+# shellcheck source=../lib/setup.sh
+. "$GOES_LIB_DIR/setup.sh"
+# shellcheck source=../lib/state.sh
+. "$GOES_LIB_DIR/state.sh"
+
+# ── Commands ─────────────────────────────────────────────────────────────────
+# Loads config, importing a v1 configuration on first use; fails with a hint
+# when there is nothing to work with.
+cmd::_require_config() {
+  config::load
+  config::is_configured && return 0
+  if config::legacy_present && config::migrate_legacy && config::save; then
+    goes::info "Imported configuration from the older version: $(config::describe)"
+    config::archive_legacy
+    return 0
+  fi
+  goes::err "Not configured yet."
+  goes::hint "Run: $GOES_PROG setup"
+  return 1
+}
+
+cmd::setup() {
+  ui::banner "let's put the planet on your desktop"
+  setup::run "$@"
+  local status=$?
+  [ "$status" -ne 0 ] && return "$status"
+
+  if ui::confirm "Set the wallpaper now?" y; then
+    cmd::update --force
+  fi
+  printf '\n' >&2
+  goes::hint "Run '$GOES_PROG' any time to see status, '$GOES_PROG setup' to change region."
+  return 0
+}
+
+cmd::update() {
+  local force=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      -f|--force) force=1 ;;
+      *) goes::die "update: unknown option '$arg'" ;;
+    esac
+  done
+
+  cmd::_require_config || return 1
+
+  if [ "$force" -eq 0 ] && [ "$CFG_on_battery" = "skip" ] && ! wallpaper::on_ac_power; then
+    goes::log info "event=update_skipped reason=on_battery"
+    state::write skipped '' 'on battery'
+    goes::info "On battery; skipping. Use --force to update anyway."
+    return 0
+  fi
+
+  fetch::latest
+  local fetch_status=$?
+
+  if [ "$fetch_status" -eq 1 ]; then
+    state::write error '' 'download failed'
+    return 1
+  fi
+
+  if [ "$fetch_status" -eq 3 ] && [ "$force" -eq 0 ]; then
+    goes::log info "event=update_unchanged image=$(basename "${FETCH_IMAGE:-none}")"
+    state::write unchanged "$FETCH_IMAGE" 'frame unchanged'
+    goes::info "NOAA has not published a new frame yet."
+    return 0
+  fi
+
+  [ -n "$FETCH_IMAGE" ] || { state::write error '' 'no image'; goes::err "No image to apply."; return 1; }
+
+  if ! wallpaper::set "$FETCH_IMAGE" "$CFG_scaling"; then
+    state::write error "$FETCH_IMAGE" 'wallpaper backend failed'
+    return 1
+  fi
+
+  ln -sf "$FETCH_IMAGE" "$GOES_CURRENT_LINK" 2>/dev/null || true
+  state::write ok "$FETCH_IMAGE" "$WALLPAPER_BACKEND"
+  goes::log info "event=wallpaper_set backend=$WALLPAPER_BACKEND resolution=$FETCH_RESOLUTION bytes=$FETCH_BYTES"
+  local trimmed=''
+  [ "$FETCH_TRIMMED_ROWS" -gt 0 ] && trimmed=" $GOES_GLYPH_DOT caption removed"
+  goes::ok "$(config::describe) $GOES_GLYPH_DOT $FETCH_RESOLUTION $GOES_GLYPH_DOT $(goes::human_bytes "$FETCH_BYTES")$trimmed"
+  return 0
+}
+
+cmd::status() {
+  config::load
+  state::read
+
+  ui::banner "$(if config::is_configured; then config::describe; else printf 'not configured yet'; fi)"
+
+  if ! config::is_configured; then
+    goes::warn "No configuration found."
+    goes::hint "Run: $GOES_PROG setup"
+    return 1
+  fi
+
+  local label
+  if [ "$CFG_view" = "fd" ]; then
+    label="$(catalog::sat_label "$CFG_satellite") full disk"
+  else
+    catalog::load --offline
+    label="$(catalog::sector_name "$CFG_satellite" "$CFG_sector")"
+  fi
+
+  ui::kv "Region" "$label"
+  ui::kv "Satellite" "$(catalog::sat_label "$CFG_satellite") $C_GREY($CFG_satellite $GOES_GLYPH_DOT $(catalog::sat_position "$CFG_satellite"))$C_RESET"
+  local size="$CFG_resolution" resolved
+  if [ "$size" = "auto" ] && resolved=$(fetch::cached_resolution) && [ -n "$resolved" ]; then
+    size="auto $C_GREY($resolved)$C_RESET"
+  fi
+  ui::kv "Size" "$size"
+  ui::kv "Framing" "$CFG_scaling"
+  if [ "$CFG_trim_caption" = "true" ]; then
+    ui::kv "Caption strip" "hidden"
+  else
+    ui::kv "Caption strip" "shown"
+  fi
+  ui::kv "Interval" "every $CFG_interval min"
+
+  printf '\n' >&2
+  if service::is_running; then
+    ui::kv "Background" "running $C_GREY($(service::describe))$C_RESET" "$C_GREEN"
+    local next; next=$(service::next_run)
+    [ -n "$next" ] && ui::kv "Next run" "$next"
+  else
+    ui::kv "Background" "stopped" "$C_YELLOW"
+    goes::hint "Start it with: $GOES_PROG start"
+  fi
+
+  case "$ST_last_status" in
+    ok)        ui::kv "Last update" "$(goes::relative_time "$ST_last_run") $C_GREY(via $ST_last_detail)$C_RESET" "$C_GREEN" ;;
+    unchanged) ui::kv "Last update" "$(goes::relative_time "$ST_last_run") $C_GREY(no new frame)$C_RESET" ;;
+    skipped)   ui::kv "Last update" "$(goes::relative_time "$ST_last_run") $C_GREY($ST_last_detail)$C_RESET" "$C_YELLOW" ;;
+    error)     ui::kv "Last update" "$(goes::relative_time "$ST_last_run") $C_GREY($ST_last_detail)$C_RESET" "$C_RED" ;;
+    *)         ui::kv "Last update" "never" "$C_GREY" ;;
+  esac
+
+  if [ -n "$ST_last_image" ] && [ -f "$ST_last_image" ]; then
+    ui::kv "Current image" "$(basename "$ST_last_image") $C_GREY($(goes::human_bytes "$(goes::file_size "$ST_last_image")"))$C_RESET"
+  fi
+  ui::kv "Cached" "$(goes::human_bytes "$(fetch::disk_usage)") in $GOES_IMAGE_DIR"
+  printf '\n' >&2
+  return 0
+}
+
+cmd::start() {
+  cmd::_require_config || return 1
+  service::legacy_present && service::remove_legacy
+  if service::start; then
+    goes::ok "Background updates running $C_GREY($(service::describe), every $CFG_interval min)$C_RESET"
+    return 0
+  fi
+  return 1
+}
+
+cmd::stop() {
+  config::load
+  if service::stop; then
+    goes::ok "Background updates stopped."
+  else
+    goes::info "Background updates were not running."
+  fi
+  service::legacy_present && service::remove_legacy
+  return 0
+}
+
+cmd::restart() {
+  cmd::_require_config || return 1
+  service::restart && goes::ok "Background updates restarted (every $CFG_interval min)."
+}
+
+cmd::config() {
+  config::load
+  local action="${1:-list}"
+  [ $# -gt 0 ] && shift
+  case "$action" in
+    list|'')
+      local key
+      for key in $GOES_CONFIG_KEYS; do
+        printf '%s=%s\n' "$key" "$(config::get "$key")"
+      done ;;
+    get)
+      [ $# -ge 1 ] || goes::die "config get: needs a key"
+      config::get "$1" || return 1
+      printf '\n' ;;
+    set)
+      [ $# -ge 2 ] || goes::die "config set: needs a key and a value"
+      config::set "$1" "$2" || return 1
+      config::save || return 1
+      goes::ok "$1 = $2"
+      if [ "$1" = "sector" ] || [ "$1" = "satellite" ]; then
+        cmd::_warn_unknown_sector
+      fi
+      if [ "$1" = "interval" ] && service::is_running; then
+        service::restart >/dev/null 2>&1 && goes::info "Background schedule updated."
+      fi ;;
+    path)
+      printf '%s\n' "$GOES_CONFIG_FILE" ;;
+    edit)
+      "${EDITOR:-vi}" "$GOES_CONFIG_FILE"
+      config::load
+      goes::ok "Reloaded: $(config::describe)" ;;
+    *)
+      goes::die "config: unknown action '$action' (list, get, set, path, edit)" ;;
+  esac
+}
+
+# NOAA adds and retires sectors, so an unknown code is a warning, not an error.
+cmd::_warn_unknown_sector() {
+  [ "$CFG_view" = "sector" ] && [ -n "$CFG_satellite" ] && [ -n "$CFG_sector" ] || return 0
+  catalog::load --offline
+  local i=0
+  while [ "$i" -lt "$CAT_COUNT" ]; do
+    [ "${CAT_SAT[$i]}" = "$CFG_satellite" ] && [ "${CAT_SECTOR[$i]}" = "$CFG_sector" ] && return 0
+    i=$((i + 1))
+  done
+  goes::warn "$CFG_satellite has no known sector '$CFG_sector'. Run '$GOES_PROG setup' to browse regions."
+}
+
+cmd::log() {
+  local follow=0 lines=40 arg
+  while [ $# -gt 0 ]; do
+    arg="$1"; shift
+    case "$arg" in
+      -f|--follow) follow=1 ;;
+      -n) lines="${1:-40}"; shift ;;
+      *) goes::die "log: unknown option '$arg'" ;;
+    esac
+  done
+  [ -f "$GOES_LOG_FILE" ] || { goes::info "No log yet at $GOES_LOG_FILE"; return 0; }
+  if [ "$follow" -eq 1 ]; then
+    tail -n "$lines" -f "$GOES_LOG_FILE"
+  else
+    tail -n "$lines" "$GOES_LOG_FILE"
+  fi
+}
+
+cmd::open() {
+  config::load
+  state::read
+  local image="$ST_last_image"
+  [ -f "$image" ] || image=$(fetch::latest_local)
+  [ -f "$image" ] || { goes::err "No image downloaded yet. Run: $GOES_PROG update --force"; return 1; }
+  if [ "$GOES_PLATFORM" = "macos" ]; then
+    open "$image"
+  elif goes::have xdg-open; then
+    xdg-open "$image" >/dev/null 2>&1 &
+  else
+    printf '%s\n' "$image"
+  fi
+}
+
+cmd::doctor() {
+  . "$GOES_LIB_DIR/doctor.sh"
+  doctor::run "$@"
+}
+
+# The installer's default checkout location. Only this directory is ever
+# deleted by --purge; a developer's own clone is never removed.
+cmd::_managed_root() {
+  local dir="${GOES_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/goes-wallpaper}"
+  # GOES_ROOT_DIR is a physical path (cd -P), so resolve symlinks here too.
+  if [ -d "$dir" ]; then (cd -P "$dir" && pwd); else printf '%s' "$dir"; fi
+}
+
+cmd::uninstall() {
+  local purge=0 assume_yes=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --purge) purge=1 ;;
+      -y|--yes) assume_yes=1 ;;
+      *) goes::die "uninstall: unknown option '$arg' (--purge, --yes)" ;;
+    esac
+  done
+
+  local remove_source=0
+  if [ "$purge" -eq 1 ] && [ "$GOES_ROOT_DIR" = "$(cmd::_managed_root)" ] \
+     && [ -f "$GOES_ROOT_DIR/bin/goes" ] && [ -f "$GOES_ROOT_DIR/lib/common.sh" ]; then
+    remove_source=1
+  fi
+
+  config::load
+  ui::banner "uninstall"
+  goes::say "This will remove:"
+  goes::say "  $GOES_GLYPH_DOT background updates ($(service::describe))"
+  goes::say "  $GOES_GLYPH_DOT downloaded images and logs"
+  goes::say "  $GOES_GLYPH_DOT the '$GOES_PROG' command"
+  if [ "$purge" -eq 1 ]; then
+    goes::say "  $GOES_GLYPH_DOT your settings ($GOES_CONFIG_DIR)"
+    config::legacy_present && goes::say "  $GOES_GLYPH_DOT old v1 settings (${XDG_CONFIG_HOME:-$HOME/.config}/goes-*)"
+    [ "$remove_source" -eq 1 ] && goes::say "  $GOES_GLYPH_DOT the program itself ($GOES_ROOT_DIR)"
+  fi
+  goes::say ""
+  if [ "$purge" -eq 0 ]; then
+    goes::say "Your settings are kept. Use --purge to remove everything."
+  elif [ "$remove_source" -eq 0 ]; then
+    goes::say "The source at $GOES_ROOT_DIR is not an installer-managed copy, so it is kept."
+  fi
+  goes::say "Your desktop keeps whatever picture it has now."
+  goes::say ""
+  if [ "$assume_yes" -eq 0 ] && ! ui::confirm "Continue?" n; then
+    goes::info "Nothing was removed."
+    return 0
+  fi
+
+  service::stop >/dev/null 2>&1
+  service::remove_legacy >/dev/null 2>&1
+  rm -rf "$GOES_CACHE_DIR" "$GOES_STATE_DIR"
+  goes::ok "Background updates removed, images and logs deleted."
+
+  local link
+  for link in "${GOES_BIN_DIR:-$HOME/.local/bin}/goes" "/usr/local/bin/goes"; do
+    if [ -L "$link" ] && [ "$(readlink "$link")" = "$GOES_ROOT_DIR/bin/goes" ]; then
+      rm -f "$link" && goes::info "Removed $link"
+    fi
+  done
+
+  if [ "$purge" -eq 1 ]; then
+    rm -rf "$GOES_CONFIG_DIR" && goes::ok "Settings removed."
+    config::remove_legacy
+  fi
+  if [ "$remove_source" -eq 1 ]; then
+    rm -rf "$GOES_ROOT_DIR" && goes::ok "Program removed."
+  fi
+
+  goes::ok "Uninstalled."
+  if [ "$purge" -eq 0 ]; then
+    goes::hint "Reinstalling later picks up your settings again."
+  fi
+  goes::hint "The PATH line the installer may have added to your shell profile is harmless; delete it if you like."
+}
+
+cmd::version() {
+  printf '%s %s\n' "$GOES_NAME" "$GOES_VERSION"
+  printf 'install  %s\n' "$GOES_ROOT_DIR"
+  printf 'platform %s (bash %s)\n' "$GOES_PLATFORM" "${BASH_VERSION%%(*}"
+}
+
+cmd::help() {
+  cat >&2 <<HELP
+${C_BOLD}goes${C_RESET} — live satellite imagery as your desktop wallpaper
+
+${C_BOLD}USAGE${C_RESET}
+  goes                     show what is configured and running
+  goes setup               choose a region, size and refresh rate
+  goes update [--force]    fetch the latest frame and apply it now
+  goes start | stop        turn background updates on or off
+  goes restart             reload the background schedule
+  goes doctor              check the installation and diagnose problems
+  goes config <action>     list | get KEY | set KEY VALUE | path | edit
+  goes log [-f] [-n N]     show the activity log
+  goes open                open the current image in a viewer
+  goes uninstall [--purge]  remove background updates, images and the command
+                           (--purge also removes settings and the program)
+  goes version             print version and install location
+
+${C_BOLD}SETTINGS${C_RESET}
+  view          fd (whole Earth) or sector (regional close-up)
+  satellite     G19 GOES-East, G18 GOES-West
+  sector        region code, e.g. ssa, pnw, hi
+  resolution    auto, or an exact size like 3600x2160
+  max_pixels    optional cap for resolution=auto (0 = largest available)
+  scaling       fit | fill | center | stretch
+  trim_caption  true | false: crop NOAA's white caption strip
+  interval      minutes between refreshes (1-1440)
+  on_battery    skip | run
+  keep_images   how many frames to keep on disk
+
+${C_BOLD}EXAMPLES${C_RESET}
+  goes config set sector pnw     switch to the Pacific Northwest
+  goes config set interval 30    refresh every half hour
+  goes update --force            update right now, even on battery
+
+  config  $GOES_CONFIG_FILE
+  images  $GOES_IMAGE_DIR
+  log     $GOES_LOG_FILE
+  source  $GOES_REPO_WEB
+HELP
+}
+
+# ── Dispatch ─────────────────────────────────────────────────────────────────
+main() {
+  goes::ensure_dirs 2>/dev/null || true
+
+  local command="${1:-status}"
+  [ $# -gt 0 ] && shift
+
+  case "$command" in
+    status|'')            cmd::status "$@" ;;
+    setup|configure|init) cmd::setup "$@" ;;
+    update|run|now)       cmd::update "$@" ;;
+    start|enable)         cmd::start "$@" ;;
+    stop|disable)         cmd::stop "$@" ;;
+    restart|reload)       cmd::restart "$@" ;;
+    config)               cmd::config "$@" ;;
+    doctor|diagnose)      cmd::doctor "$@" ;;
+    log|logs)             cmd::log "$@" ;;
+    open|show)            cmd::open "$@" ;;
+    uninstall|remove)     cmd::uninstall "$@" ;;
+    version|--version|-V) cmd::version ;;
+    help|--help|-h)       cmd::help ;;
+    *)
+      goes::err "Unknown command: $command"
+      goes::hint "Run '$GOES_PROG help' to see what is available."
+      exit 64 ;;
+  esac
+}
+
+main "$@"

@@ -1,0 +1,4 @@
+# The libraries share globals (CFG_*, ST_*, C_*, GOES_*) across files and
+# assign some through `eval`, which shellcheck cannot follow per file.
+shell=bash
+disable=SC1090,SC1091,SC2034,SC2154,SC2317
