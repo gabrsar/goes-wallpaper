@@ -193,6 +193,7 @@ SETUP_RES_OPT=()
 SETUP_SCALING=''
 
 setup::choose_scaling() {
+  local backend
   setup::_step "How should it sit on your screen?"
   UI_ITEMS=(); UI_HINTS=(); UI_GROUPS=()
   SETUP_SCALE_OPT=(fit fill center stretch)
@@ -218,8 +219,22 @@ setup::choose_scaling() {
   ui::select || return 1
   SETUP_SCALING="${SETUP_SCALE_OPT[$UI_RESULT]}"
   goes::ok "Framing: $SETUP_SCALING"
+
+  if ui::confirm "Hide NOAA's white caption strip at the bottom?" y; then
+    SETUP_TRIM='true'
+    if backend=$(image::describe_backend); then
+      goes::ok "Caption strip: hidden ($backend)"
+    else
+      goes::warn "Caption strip: will be hidden once ImageMagick is installed."
+      goes::hint "Debian/Ubuntu: sudo apt install imagemagick   Fedora: sudo dnf install ImageMagick"
+    fi
+  else
+    SETUP_TRIM='false'
+    goes::ok "Caption strip: shown"
+  fi
   return 0
 }
+SETUP_TRIM='true'
 SETUP_SCALE_OPT=()
 
 # ── Step 4: cadence ──────────────────────────────────────────────────────────
@@ -296,6 +311,7 @@ setup::summary() {
   ui::kv "Satellite" "$(catalog::sat_label "$SETUP_SAT") ($SETUP_SAT, $(catalog::sat_position "$SETUP_SAT"))"
   ui::kv "Size" "$SETUP_RESOLUTION"
   ui::kv "Framing" "$SETUP_SCALING"
+  ui::kv "Caption strip" "$([ "$SETUP_TRIM" = "true" ] && printf 'hidden' || printf 'shown')"
   ui::kv "Refresh" "every $SETUP_INTERVAL min"
   ui::kv "On battery" "$SETUP_ON_BATTERY"
   ui::kv "Config" "$GOES_CONFIG_FILE"
@@ -308,6 +324,7 @@ setup::apply() {
   config::set sector "$SETUP_SECTOR" || return 1
   config::set resolution "$SETUP_RESOLUTION" || return 1
   config::set scaling "$SETUP_SCALING" || return 1
+  config::set trim_caption "$SETUP_TRIM" || return 1
   config::set interval "$SETUP_INTERVAL" || return 1
   config::set on_battery "$SETUP_ON_BATTERY" || return 1
   config::save

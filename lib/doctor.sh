@@ -172,6 +172,16 @@ doctor::check_service() {
 doctor::check_display() {
   goes::heading "Display"
 
+  local backend
+  if [ "$CFG_trim_caption" != "true" ]; then
+    doctor::_pass "Caption strip" "shown (trim_caption=false)"
+  elif backend=$(image::describe_backend); then
+    doctor::_pass "Caption strip" "removed with $backend"
+  else
+    doctor::_warn "Caption strip" "cannot be removed: no image tool" \
+      "Install ImageMagick (sudo apt install imagemagick), or: $GOES_PROG config set trim_caption false"
+  fi
+
   local screen
   screen=$(wallpaper::screen_size)
   if [ -n "$screen" ]; then

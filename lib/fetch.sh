@@ -12,6 +12,8 @@ _GOES_FETCH_SH=1
 . "${GOES_LIB_DIR:?GOES_LIB_DIR must be set}/catalog.sh"
 # shellcheck source=lib/config.sh
 . "${GOES_LIB_DIR}/config.sh"
+# shellcheck source=lib/image.sh
+. "${GOES_LIB_DIR}/image.sh"
 
 GOES_MIN_IMAGE_BYTES=4096
 GOES_RESOLUTION_CACHE_TTL=86400
@@ -20,6 +22,7 @@ FETCH_IMAGE=''
 FETCH_URL=''
 FETCH_RESOLUTION=''
 FETCH_BYTES=0
+FETCH_TRIMMED_ROWS=0
 
 fetch::_key() {
   if [ "$CFG_view" = "fd" ]; then
@@ -134,6 +137,9 @@ fetch::latest() {
     rm -f "$hdr" "$tmp"
     FETCH_IMAGE="$previous"
     FETCH_BYTES=$(goes::file_size "$previous")
+    # Trimming is idempotent, and this covers turning trim_caption on
+    # between two NOAA frames.
+    fetch::_trim "$previous"
     goes::log info "event=fetch_unchanged key=$key url=$url"
     return 3
   fi
@@ -179,8 +185,27 @@ fetch::latest() {
 
   FETCH_IMAGE="$final"
   FETCH_BYTES="$size"
+  fetch::_trim "$final"
   fetch::prune "$key"
   goes::log info "event=fetch_ok key=$key resolution=$resolution bytes=$size file=$(basename "$final")"
+  return 0
+}
+
+# Crops NOAA's caption strip when enabled. A missing tool or a failed crop
+# keeps the untouched frame and is logged; the wallpaper still updates.
+fetch::_trim() {
+  local file="$1" status
+  FETCH_TRIMMED_ROWS=0
+  [ "$CFG_trim_caption" = "true" ] || return 0
+
+  image::trim_caption "$file"; status=$?
+  case "$status" in
+    0) FETCH_TRIMMED_ROWS="$IMAGE_TRIM_ROWS"
+       goes::log info "event=caption_trimmed rows=$IMAGE_TRIM_ROWS backend=$IMAGE_TRIM_BACKEND file=$(basename "$file")" ;;
+    2) goes::log warn "event=caption_trim_unavailable reason=no_backend"
+       goes::warn "Caption not removed: install ImageMagick, or run '$GOES_PROG config set trim_caption false'." ;;
+    *) goes::warn "Caption not removed: cropping failed (see '$GOES_PROG log'). Using the frame as is." ;;
+  esac
   return 0
 }
 

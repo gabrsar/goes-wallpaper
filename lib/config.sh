@@ -10,7 +10,7 @@ _GOES_CONFIG_SH=1
 # shellcheck source=lib/common.sh
 . "${GOES_LIB_DIR:?GOES_LIB_DIR must be set}/common.sh"
 
-GOES_CONFIG_KEYS="view satellite sector product resolution max_pixels interval on_battery keep_images scaling"
+GOES_CONFIG_KEYS="view satellite sector product resolution max_pixels interval on_battery keep_images scaling trim_caption"
 
 CFG_view=''
 CFG_satellite=''
@@ -22,6 +22,7 @@ CFG_interval='10'
 CFG_on_battery='skip'
 CFG_keep_images='5'
 CFG_scaling='fit'
+CFG_trim_caption='true'
 
 config::_default_for() {
   case "$1" in
@@ -35,6 +36,7 @@ config::_default_for() {
     on_battery)     printf 'skip' ;;
     keep_images)    printf '5' ;;
     scaling)        printf 'fit' ;;
+    trim_caption)   printf 'true' ;;
     *)              printf '' ;;
   esac
 }
@@ -80,6 +82,9 @@ config::validate() {
     scaling)
       case "$value" in fit|fill|stretch|center) return 0 ;; esac
       goes::err "scaling must be fit, fill, stretch or center; got '$value'" ;;
+    trim_caption)
+      case "$value" in true|false) return 0 ;; esac
+      goes::err "trim_caption must be 'true' or 'false'; got '$value'" ;;
     on_battery)
       case "$value" in skip|run) return 0 ;; esac
       goes::err "on_battery must be 'skip' or 'run'; got '$value'" ;;
@@ -182,6 +187,9 @@ config::save() {
     printf '\n'
     printf '# fit keeps the whole frame on a black field; fill crops to the screen\n'
     printf 'scaling=%s\n' "$CFG_scaling"
+    printf '\n'
+    printf '# crop the white NOAA caption strip off the bottom of each frame\n'
+    printf 'trim_caption=%s\n' "$CFG_trim_caption"
   } >"$tmp" || { rm -f "$tmp"; goes::err "cannot write $tmp"; return 1; }
 
   mv -f "$tmp" "$file" || { rm -f "$tmp"; goes::err "cannot move config into place"; return 1; }

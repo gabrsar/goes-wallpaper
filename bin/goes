@@ -105,7 +105,9 @@ cmd::update() {
   ln -sf "$FETCH_IMAGE" "$GOES_CURRENT_LINK" 2>/dev/null || true
   state::write ok "$FETCH_IMAGE" "$WALLPAPER_BACKEND"
   goes::log info "event=wallpaper_set backend=$WALLPAPER_BACKEND resolution=$FETCH_RESOLUTION bytes=$FETCH_BYTES"
-  goes::ok "$(config::describe) $GOES_GLYPH_DOT $FETCH_RESOLUTION $GOES_GLYPH_DOT $(goes::human_bytes "$FETCH_BYTES")"
+  local trimmed=''
+  [ "$FETCH_TRIMMED_ROWS" -gt 0 ] && trimmed=" $GOES_GLYPH_DOT caption removed"
+  goes::ok "$(config::describe) $GOES_GLYPH_DOT $FETCH_RESOLUTION $GOES_GLYPH_DOT $(goes::human_bytes "$FETCH_BYTES")$trimmed"
   return 0
 }
 
@@ -137,6 +139,11 @@ cmd::status() {
   fi
   ui::kv "Size" "$size"
   ui::kv "Framing" "$CFG_scaling"
+  if [ "$CFG_trim_caption" = "true" ]; then
+    ui::kv "Caption strip" "hidden"
+  else
+    ui::kv "Caption strip" "shown"
+  fi
   ui::kv "Interval" "every $CFG_interval min"
 
   printf '\n' >&2
@@ -383,6 +390,7 @@ ${C_BOLD}SETTINGS${C_RESET}
   resolution    auto, or an exact size like 3600x2160
   max_pixels    optional cap for resolution=auto (0 = largest available)
   scaling       fit | fill | center | stretch
+  trim_caption  true | false: crop NOAA's white caption strip
   interval      minutes between refreshes (1-1440)
   on_battery    skip | run
   keep_images   how many frames to keep on disk

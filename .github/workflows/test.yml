@@ -17,9 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install shellcheck
+      - name: Install shellcheck and ImageMagick
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then brew install shellcheck; else sudo apt-get install -y shellcheck; fi
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install shellcheck imagemagick
+          else
+            sudo apt-get update && sudo apt-get install -y shellcheck imagemagick
+          fi
 
       - name: Unit tests
         run: tests/run.sh

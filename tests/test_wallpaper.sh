@@ -74,9 +74,9 @@ if [ "$GOES_PLATFORM" = "macos" ]; then
     t::_pass "skipped: swiftc is not installed"
   fi
 
-  t::case "the compiled helper is cached next to the other caches"
-  assert_contains "$(wallpaper::_mac_helper_path)" "$GOES_CACHE_DIR" \
-    "the helper lives under the cache directory"
+  t::case "compiled helpers are cached next to the other caches"
+  assert_contains "$(swift::helper_path set-wallpaper)" "$GOES_CACHE_DIR" \
+    "helpers live under the cache directory"
 fi
 
 if [ "$GOES_PLATFORM" = "linux" ]; then

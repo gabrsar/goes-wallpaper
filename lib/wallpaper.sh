@@ -8,43 +8,18 @@
 [ -n "${_GOES_WALLPAPER_SH:-}" ] && return 0
 _GOES_WALLPAPER_SH=1
 
-# shellcheck source=lib/common.sh
-. "${GOES_LIB_DIR:?GOES_LIB_DIR must be set}/common.sh"
+# shellcheck source=lib/swift.sh
+. "${GOES_LIB_DIR:?GOES_LIB_DIR must be set}/swift.sh"
 
 WALLPAPER_BACKEND=''
 
 # ── macOS ────────────────────────────────────────────────────────────────────
-# NSWorkspace is the only API that reliably covers every space and display on
-# modern macOS. The helper is compiled once and cached; `swift` as a script
-# interpreter costs ~2s per run, which is far too slow for a 10-minute timer.
-GOES_SWIFT_SOURCE_NAME='set-wallpaper.swift'
-
-wallpaper::_mac_helper_path() { printf '%s/bin/goes-set-wallpaper' "$GOES_CACHE_DIR"; }
-
-wallpaper::_mac_build_helper() {
-  local src="$GOES_SHARE_DIR/$GOES_SWIFT_SOURCE_NAME"
-  local out; out=$(wallpaper::_mac_helper_path)
-  [ -f "$src" ] || return 1
-  goes::have swiftc || return 1
-
-  # Rebuild only when the source is newer than the cached binary.
-  if [ -x "$out" ] && [ "$(goes::mtime "$out")" -ge "$(goes::mtime "$src")" ]; then
-    return 0
-  fi
-  mkdir -p "$(dirname "$out")" || return 1
-  if swiftc -O -o "$out.tmp" "$src" >/dev/null 2>&1 && mv -f "$out.tmp" "$out"; then
-    goes::log info "event=swift_helper_built path=$out"
-    return 0
-  fi
-  rm -f "$out.tmp"
-  return 1
-}
-
+# NSWorkspace is the only API that reliably covers every display on modern
+# macOS; share/set-wallpaper.swift wraps it.
 wallpaper::_set_macos() {
   local image="$1" mode="$2" out status helper
-  helper=$(wallpaper::_mac_helper_path)
 
-  if wallpaper::_mac_build_helper && [ -x "$helper" ]; then
+  if helper=$(swift::helper set-wallpaper); then
     out=$("$helper" "$image" "$mode" 2>&1); status=$?
     if [ "$status" -eq 0 ]; then
       WALLPAPER_BACKEND='nsworkspace'

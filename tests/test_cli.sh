@@ -53,7 +53,7 @@ out=$(run config list)
 assert_contains "$out" "satellite=G19" "list shows the satellite"
 assert_contains "$out" "scaling=fit" "list shows defaults for untouched keys"
 lines=$(printf '%s\n' "$out" | wc -l | tr -d ' ')
-assert_eq '10' "$lines" "every setting is listed"
+assert_eq '11' "$lines" "every setting is listed"
 
 t::case "config rejects bad input"
 assert_status 1 "an out-of-range interval is refused" "$BASH" "$GOES" config set interval 0

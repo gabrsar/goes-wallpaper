@@ -83,9 +83,16 @@ assert_contains "$timer" "WantedBy=timers.target" "the timer can be enabled"
 
 t::case "legacy scheduling is recognized"
 assert_status 1 "a clean sandbox has no legacy scheduling" service::legacy_present
-touch "$HOME/Library/LaunchAgents/com.goes-wallpaper.plist"
-assert_ok "an old LaunchAgent is detected" service::legacy_present
-rm -f "$HOME/Library/LaunchAgents/com.goes-wallpaper.plist"
+if [ "$GOES_PLATFORM" = "macos" ]; then
+  touch "$GOES_LEGACY_PLIST"
+  assert_ok "an old LaunchAgent is detected" service::legacy_present
+  rm -f "$GOES_LEGACY_PLIST"
+else
+  mkdir -p "$(dirname "$GOES_LEGACY_SYSTEMD")"
+  touch "$GOES_LEGACY_SYSTEMD"
+  assert_ok "an old systemd unit is detected" service::legacy_present
+  rm -f "$GOES_LEGACY_SYSTEMD"
+fi
 printf '*/5 * * * * /old/goes-update # goes-wallpaper\n' >"$T_SANDBOX/crontab"
 assert_ok "an old cron entry is detected" service::legacy_present
 
