@@ -21,9 +21,9 @@ outside your home directory, and walks you through choosing a view.
   plus 31 regional sectors, from the Great Lakes to the South Pacific.
 - **A picker that's actually pleasant.** Arrow keys, type-to-filter, regions
   grouped by area, and download sizes measured live from NOAA before you commit.
-- **Sized for your screen.** It measures your display and recommends the
-  smallest frame that's still sharp on it, so you're not pulling 50 MB every
-  ten minutes for a laptop.
+- **Always the sharpest frame.** It picks the largest image NOAA publishes
+  for your view and keeps up if NOAA adds bigger ones. The setup wizard shows
+  every size with its real download cost, if you'd rather save bandwidth.
 - **Light on the network.** Conditional requests mean an unchanged frame costs
   one tiny `304`, not a re-download.
 - **Battery-aware.** It pauses on battery by default, and you can change that.
@@ -61,12 +61,12 @@ Type to filter · full disk shows the entire hemisphere, sectors zoom in
 How large should each frame be?
 
   Recommended
-   ▸ Automatic                          now 5424x5424, adjusts itself
-     5424x5424  ✔ best for your display 29.4 MP · 16.1 MB
-  All sizes
-     21696x21696                        470.7 MP · 51.3 MB
-     1808x1808                          3.2 MP · 2.4 MB
-     678x678                            0.4 MP · 438 KB
+   ▸ Largest available                  now 7200x4320 · 31.1 MP · 17.8 MB
+  Fixed size
+     7200x4320                          31.1 MP · 17.8 MB
+     3600x2160  · smallest that fills…  7.7 MP · 5.6 MB
+     1800x1080                          1.9 MP · 1.6 MB
+     900x540                            0.4 MP · 506 KB
 ```
 
 After that you pick framing (fit, fill, center, stretch), how often to refresh,
@@ -107,8 +107,8 @@ Stored in `~/.config/goes-wallpaper/config` as plain `key=value` lines.
 | `view`       | `fd`, `sector`                     | `sector`   | `fd` is the full-disk hemisphere |
 | `satellite`  | `G19`, `G18`                       | —          | GOES-East, GOES-West |
 | `sector`     | region code, e.g. `ssa`, `pnw`     | —          | Ignored when `view=fd` |
-| `resolution` | `auto` or `WIDTHxHEIGHT`           | `auto`     | |
-| `max_pixels` | whole number                       | `30000000` | Upper limit used by `auto` |
+| `resolution` | `auto` or `WIDTHxHEIGHT`           | `auto`     | `auto` is the largest available |
+| `max_pixels` | whole number                       | `0`        | Optional cap for `auto`; `0` means none |
 | `scaling`    | `fit`, `fill`, `center`, `stretch` | `fit`      | `fit` shows the whole frame on black |
 | `interval`   | `1`–`1440` minutes                 | `10`       | NOAA publishes about every 10 min |
 | `on_battery` | `skip`, `run`                      | `skip`     | |
@@ -151,6 +151,10 @@ Hyprland, and any X11 window manager through `feh`. The systemd timer runs
 outside your graphical session, so the display and D-Bus environment are
 recovered from your session at update time.
 
+**Anything else:** set `GOES_WALLPAPER_CMD` to your own command. It's run
+with the image path as its last argument, for example
+`GOES_WALLPAPER_CMD="nitrogen --set-zoom-fill --save"`.
+
 Runs on the system bash on both (3.2 on macOS). Needs only `curl` and `git`.
 
 ## Upgrading
@@ -169,12 +173,16 @@ you run `goes setup` or `goes start`. The old files are kept in
 goes uninstall
 ```
 
-This removes the background schedule, the cached frames and logs, and the `goes`
-command. Your settings and the source checkout stay unless you delete them:
+This removes the background schedule, the downloaded frames and logs, and the
+`goes` command, and keeps your settings for a later reinstall. To remove
+everything, including settings and the program itself:
 
 ```bash
-rm -rf ~/.local/share/goes-wallpaper ~/.config/goes-wallpaper
+goes uninstall --purge
 ```
+
+`--purge` only deletes the program folder if the installer created it. A
+checkout you cloned yourself is never touched.
 
 ## Troubleshooting
 
@@ -216,13 +224,15 @@ it's cached for a day, and a built-in copy is used when NOAA can't be reached.
 ## Development
 
 ```bash
-tests/run.sh               # ~330 unit assertions, no network
+tests/run.sh               # ~370 unit assertions, no network
 tests/run.sh --network     # also downloads real frames from NOAA
 tests/run.sh config        # just one file
 /bin/bash tests/run.sh     # on macOS: run the suite under bash 3.2
 ```
 
-The suite also lints for the portability traps this project is prone to:
+Tests run in a sandbox: they never change your real wallpaper or touch your
+real background job. The suite also lints for the portability traps this
+project is prone to:
 bash-4-only syntax, `local a=1 b=$a` (which breaks on bash 3.2), unbraced
 variables next to Unicode glyphs, and GNU-only tool flags. If `shellcheck` is
 installed it runs too. CI runs everything on macOS and Ubuntu.
@@ -247,6 +257,10 @@ share/              Swift wallpaper helper for macOS
 Imagery: [NOAA / NESDIS / STAR](https://www.star.nesdis.noaa.gov/GOES/index.php),
 GOES-East (GOES-19) and GOES-West (GOES-18), GeoColor product. GOES imagery is
 public-domain U.S. government data.
+
+## License
+
+[MIT](LICENSE)
 
 ![Example desktop](docs/images/example2.jpg)
 ![Example desktop](docs/images/example3.jpg)

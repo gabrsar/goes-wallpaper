@@ -17,7 +17,7 @@ CFG_satellite=''
 CFG_sector=''
 CFG_product='GEOCOLOR'
 CFG_resolution='auto'
-CFG_max_pixels='30000000'
+CFG_max_pixels='0'
 CFG_interval='10'
 CFG_on_battery='skip'
 CFG_keep_images='5'
@@ -30,7 +30,7 @@ config::_default_for() {
     sector)         printf '' ;;
     product)        printf 'GEOCOLOR' ;;
     resolution)     printf 'auto' ;;
-    max_pixels)     printf '30000000' ;;
+    max_pixels)     printf '0' ;;
     interval)       printf '10' ;;
     on_battery)     printf 'skip' ;;
     keep_images)    printf '5' ;;
@@ -71,8 +71,8 @@ config::validate() {
       printf '%s' "$value" | grep -qE '^[0-9]{2,6}x[0-9]{2,6}$' && return 0
       goes::err "resolution must be 'auto' or WIDTHxHEIGHT; got '$value'" ;;
     max_pixels)
-      printf '%s' "$value" | grep -qE '^[0-9]{4,12}$' && return 0
-      goes::err "max_pixels must be a whole number of pixels; got '$value'" ;;
+      printf '%s' "$value" | grep -qE '^[0-9]{1,12}$' && return 0
+      goes::err "max_pixels must be a whole number of pixels (0 = no limit); got '$value'" ;;
     interval)
       printf '%s' "$value" | grep -qE '^[0-9]{1,4}$' \
         && [ "$value" -ge 1 ] && [ "$value" -le 1440 ] && return 0
@@ -171,7 +171,7 @@ config::save() {
     printf 'sector=%s\n' "$CFG_sector"
     printf 'product=%s\n' "$CFG_product"
     printf '\n'
-    printf '# auto = largest image at or below max_pixels\n'
+    printf '# auto = largest image available (capped by max_pixels when it is not 0)\n'
     printf 'resolution=%s\n' "$CFG_resolution"
     printf 'max_pixels=%s\n' "$CFG_max_pixels"
     printf '\n'

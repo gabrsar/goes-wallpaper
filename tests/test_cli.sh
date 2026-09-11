@@ -126,6 +126,52 @@ assert_eq '30'        "$(v1_run config get interval)"    "interval carried over"
 assert_eq '7200x4320' "$(v1_run config get resolution)"  "resolution carried over"
 assert_eq '5'         "$(v1_run config get keep_images)" "an invalid v1 value falls back to the default"
 
+t::case "uninstall keeps settings by default"
+UN="$T_SANDBOX/un"
+mkdir -p "$UN/home/.local/bin"
+un_run() {
+  HOME="$UN/home" GOES_CONFIG_HOME="$UN/config" GOES_CACHE_HOME="$UN/cache" \
+  GOES_STATE_HOME="$UN/state" XDG_CONFIG_HOME="$UN/xdg" XDG_DATA_HOME="$UN/data" \
+    "$BASH" "$1/bin/goes" "${@:2}" 2>&1
+}
+seed_uninstall() {
+  mkdir -p "$UN/config" "$UN/cache/images" "$UN/state"
+  printf 'view=sector\nsatellite=G19\nsector=ssa\n' >"$UN/config/config"
+  : >"$UN/cache/images/G19_ssa_GEOCOLOR_x.jpg"
+  : >"$UN/state/goes-wallpaper.log"
+}
+seed_uninstall
+ln -sf "$GOES_ROOT_DIR/bin/goes" "$UN/home/.local/bin/goes"
+assert_contains "$(un_run "$GOES_ROOT_DIR" uninstall)" "Nothing was removed" \
+  "without a terminal the confirmation defaults to no"
+assert_file "$UN/config/config" "declining removes nothing"
+out=$(un_run "$GOES_ROOT_DIR" uninstall --yes)
+assert_contains "$out" "Uninstalled" "uninstall reports completion"
+assert_no_file "$UN/cache" "downloaded images are removed"
+assert_no_file "$UN/state" "logs and run state are removed"
+assert_no_file "$UN/home/.local/bin/goes" "the command link is removed"
+assert_file "$UN/config/config" "settings are kept"
+
+t::case "purge never deletes a checkout the installer did not create"
+seed_uninstall
+out=$(un_run "$GOES_ROOT_DIR" uninstall --purge --yes)
+assert_no_file "$UN/config" "settings are removed"
+assert_file "$GOES_ROOT_DIR/bin/goes" "this development checkout is untouched"
+assert_contains "$out" "not an installer-managed copy" "the user is told why it was kept"
+
+t::case "purge removes an installer-managed copy"
+seed_uninstall
+MANAGED="$UN/data/goes-wallpaper"
+mkdir -p "$MANAGED"
+cp -R "$GOES_ROOT_DIR/bin" "$GOES_ROOT_DIR/lib" "$GOES_ROOT_DIR/share" "$MANAGED/"
+out=$(un_run "$MANAGED" uninstall --purge --yes)
+assert_contains "$out" "Program removed" "removal of the program is reported"
+assert_no_file "$MANAGED" "the managed copy is deleted"
+assert_no_file "$UN/config" "settings are removed"
+
+t::case "uninstall rejects unknown options"
+assert_status 1 "a bad flag is refused" "$BASH" "$GOES" uninstall --everything
+
 # ── Network-dependent ────────────────────────────────────────────────────────
 if [ "${GOES_NETWORK_TESTS:-0}" = "1" ]; then
   t::case "a real update writes state and logs"
@@ -140,6 +186,8 @@ if [ "${GOES_NETWORK_TESTS:-0}" = "1" ]; then
   assert_file "$GOES_STATE_HOME/last-run" "run state is recorded"
   assert_file "$GOES_STATE_HOME/goes-wallpaper.log" "the log is written"
   assert_contains "$(run log)" "event=fetch_ok" "the download is logged in structured form"
+  assert_contains "$(cat "$GOES_WALLPAPER_LOG" 2>/dev/null)" "$GOES_CACHE_HOME/images/G19_ssa_GEOCOLOR_" \
+    "the test run went to the stub, never the real desktop"
   assert_contains "$(run status)" "ago" "status reports when it last ran"
 fi
 

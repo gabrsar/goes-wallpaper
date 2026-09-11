@@ -103,6 +103,15 @@ t::sandbox() {
   export GOES_NONINTERACTIVE=1
   export NO_COLOR=1
   mkdir -p "$GOES_CONFIG_HOME" "$GOES_CACHE_HOME" "$GOES_STATE_HOME" "$XDG_CONFIG_HOME"
+
+  # Never touch the developer's desktop or real scheduler: wallpaper changes
+  # go to a recorder, and service names are unique to this run.
+  export GOES_WALLPAPER_LOG="$T_SANDBOX/wallpaper-calls"
+  printf '#!/bin/sh\nprintf "%%s\\n" "$1" >>"%s"\n' "$GOES_WALLPAPER_LOG" >"$T_SANDBOX/set-wallpaper-stub"
+  chmod +x "$T_SANDBOX/set-wallpaper-stub"
+  export GOES_WALLPAPER_CMD="$T_SANDBOX/set-wallpaper-stub"
+  export GOES_LAUNCHD_LABEL="com.github.gabrsar.goes-wallpaper.test-$$"
+  export GOES_SYSTEMD_UNIT="goes-wallpaper-test-$$"
   trap 't::cleanup' EXIT
 }
 

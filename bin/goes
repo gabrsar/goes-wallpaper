@@ -40,6 +40,7 @@ cmd::_require_config() {
   config::is_configured && return 0
   if config::legacy_present && config::migrate_legacy && config::save; then
     goes::info "Imported configuration from the older version: $(config::describe)"
+    config::archive_legacy
     return 0
   fi
   goes::err "Not configured yet."
@@ -276,33 +277,77 @@ cmd::doctor() {
   doctor::run "$@"
 }
 
+# The installer's default checkout location. Only this directory is ever
+# deleted by --purge; a developer's own clone is never removed.
+cmd::_managed_root() {
+  local dir="${GOES_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/goes-wallpaper}"
+  # GOES_ROOT_DIR is a physical path (cd -P), so resolve symlinks here too.
+  if [ -d "$dir" ]; then (cd -P "$dir" && pwd); else printf '%s' "$dir"; fi
+}
+
 cmd::uninstall() {
+  local purge=0 assume_yes=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --purge) purge=1 ;;
+      -y|--yes) assume_yes=1 ;;
+      *) goes::die "uninstall: unknown option '$arg' (--purge, --yes)" ;;
+    esac
+  done
+
+  local remove_source=0
+  if [ "$purge" -eq 1 ] && [ "$GOES_ROOT_DIR" = "$(cmd::_managed_root)" ] \
+     && [ -f "$GOES_ROOT_DIR/bin/goes" ] && [ -f "$GOES_ROOT_DIR/lib/common.sh" ]; then
+    remove_source=1
+  fi
+
   config::load
   ui::banner "uninstall"
   goes::say "This will remove:"
-  goes::say "  $GOES_GLYPH_DOT background scheduling ($(service::describe))"
-  goes::say "  $GOES_GLYPH_DOT cached images and logs ($GOES_CACHE_DIR, $GOES_STATE_DIR)"
-  goes::say "  $GOES_GLYPH_DOT the '$GOES_PROG' command from your PATH"
+  goes::say "  $GOES_GLYPH_DOT background updates ($(service::describe))"
+  goes::say "  $GOES_GLYPH_DOT downloaded images and logs"
+  goes::say "  $GOES_GLYPH_DOT the '$GOES_PROG' command"
+  if [ "$purge" -eq 1 ]; then
+    goes::say "  $GOES_GLYPH_DOT your settings ($GOES_CONFIG_DIR)"
+    [ "$remove_source" -eq 1 ] && goes::say "  $GOES_GLYPH_DOT the program itself ($GOES_ROOT_DIR)"
+  fi
   goes::say ""
-  goes::say "It will NOT remove your configuration ($GOES_CONFIG_DIR)"
-  goes::say "or the checked-out source at $GOES_ROOT_DIR."
+  if [ "$purge" -eq 0 ]; then
+    goes::say "Your settings are kept. Use --purge to remove everything."
+  elif [ "$remove_source" -eq 0 ]; then
+    goes::say "The source at $GOES_ROOT_DIR is not an installer-managed copy, so it is kept."
+  fi
+  goes::say "Your desktop keeps whatever picture it has now."
   goes::say ""
-  ui::confirm "Continue?" n || { goes::info "Nothing was removed."; return 0; }
+  if [ "$assume_yes" -eq 0 ] && ! ui::confirm "Continue?" n; then
+    goes::info "Nothing was removed."
+    return 0
+  fi
 
   service::stop >/dev/null 2>&1
   service::remove_legacy >/dev/null 2>&1
   rm -rf "$GOES_CACHE_DIR" "$GOES_STATE_DIR"
+  goes::ok "Background updates removed, images and logs deleted."
 
   local link
-  for link in "$HOME/.local/bin/goes" "/usr/local/bin/goes"; do
+  for link in "${GOES_BIN_DIR:-$HOME/.local/bin}/goes" "/usr/local/bin/goes"; do
     if [ -L "$link" ] && [ "$(readlink "$link")" = "$GOES_ROOT_DIR/bin/goes" ]; then
       rm -f "$link" && goes::info "Removed $link"
     fi
   done
 
+  if [ "$purge" -eq 1 ]; then
+    rm -rf "$GOES_CONFIG_DIR" && goes::ok "Settings removed."
+  fi
+  if [ "$remove_source" -eq 1 ]; then
+    rm -rf "$GOES_ROOT_DIR" && goes::ok "Program removed."
+  fi
+
   goes::ok "Uninstalled."
-  goes::hint "Delete $GOES_ROOT_DIR and $GOES_CONFIG_DIR to remove every trace."
-  goes::hint "Your desktop keeps whatever picture was last set."
+  if [ "$purge" -eq 0 ]; then
+    goes::hint "Reinstalling later picks up your settings again."
+  fi
+  goes::hint "The PATH line the installer may have added to your shell profile is harmless; delete it if you like."
 }
 
 cmd::version() {
@@ -325,7 +370,8 @@ ${C_BOLD}USAGE${C_RESET}
   goes config <action>     list | get KEY | set KEY VALUE | path | edit
   goes log [-f] [-n N]     show the activity log
   goes open                open the current image in a viewer
-  goes uninstall           remove scheduling, caches and the PATH entry
+  goes uninstall [--purge]  remove background updates, images and the command
+                           (--purge also removes settings and the program)
   goes version             print version and install location
 
 ${C_BOLD}SETTINGS${C_RESET}
@@ -333,7 +379,7 @@ ${C_BOLD}SETTINGS${C_RESET}
   satellite     G19 GOES-East, G18 GOES-West
   sector        region code, e.g. ssa, pnw, hi
   resolution    auto, or an exact size like 3600x2160
-  max_pixels    ceiling used when resolution=auto
+  max_pixels    optional cap for resolution=auto (0 = largest available)
   scaling       fit | fill | center | stretch
   interval      minutes between refreshes (1-1440)
   on_battery    skip | run

@@ -92,6 +92,10 @@ assert_eq '339x339' "$(printf '%s\n' "$LIST" | catalog::pick_resolution 1000)" \
   "falls back to the smallest when everything exceeds the ceiling"
 assert_eq '5424x5424' "$(printf '%s\n' "$LIST" | catalog::pick_resolution 29419851)" \
   "the ceiling is inclusive"
+assert_eq '21696x21696' "$(printf '%s\n' "$LIST" | catalog::pick_resolution 0)" \
+  "no ceiling (0) means the largest frame"
+assert_eq '21696x21696' "$(printf '%s\n' "$LIST" | catalog::pick_resolution)" \
+  "no argument means the largest frame"
 
 # ── Network-dependent ────────────────────────────────────────────────────────
 if [ "${GOES_NETWORK_TESTS:-0}" = "1" ]; then

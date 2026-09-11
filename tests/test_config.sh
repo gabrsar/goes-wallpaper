@@ -15,6 +15,7 @@ assert_eq 'auto'     "$CFG_resolution"  "resolution defaults to auto"
 assert_eq '10'       "$CFG_interval"    "interval defaults to 10"
 assert_eq 'skip'     "$CFG_on_battery"  "on_battery defaults to skip"
 assert_eq 'fit'      "$CFG_scaling"     "scaling defaults to fit"
+assert_eq '0'        "$CFG_max_pixels"  "max_pixels defaults to 0 (largest available)"
 assert_status 1 "is_configured is false with no satellite" config::is_configured
 
 # ── Validation ───────────────────────────────────────────────────────────────
@@ -42,6 +43,9 @@ assert_fail "keep_images=0 rejected"      config::validate keep_images 0
 assert_fail "keep_images=201 rejected"    config::validate keep_images 201
 assert_ok   "scaling=fill accepted"       config::validate scaling fill
 assert_fail "scaling=cover rejected"      config::validate scaling cover
+assert_ok   "max_pixels=0 accepted"       config::validate max_pixels 0
+assert_ok   "max_pixels=8000000 accepted" config::validate max_pixels 8000000
+assert_fail "max_pixels=-1 rejected"      config::validate max_pixels -1
 assert_fail "unknown key rejected"        config::validate nonsense x
 
 t::case "set rejects invalid values"

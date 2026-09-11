@@ -93,6 +93,14 @@ printf '3600x2160\n' >"$GOES_CACHE_DIR/resolution-$(fetch::_key).30000000"
 assert_eq '3600x2160' "$(fetch::resolve_resolution 'https://127.0.0.1:9/nope')" \
   "no request is made when the cache is warm"
 
+t::case "auto defaults to the largest size"
+config::set max_pixels 0
+printf '7200x4320\n' >"$GOES_CACHE_DIR/resolution-$(fetch::_key).0"
+assert_eq '7200x4320' "$(fetch::resolve_resolution 'https://127.0.0.1:9/nope')" \
+  "the uncapped cache entry is used"
+assert_eq '7200x4320' "$(fetch::cached_resolution)" "status can show what auto resolved to"
+config::set max_pixels 30000000
+
 t::case "auto reports failure when there is nothing to fall back on"
 rm -f "$GOES_CACHE_DIR"/resolution-*
 resolve_unreachable() {

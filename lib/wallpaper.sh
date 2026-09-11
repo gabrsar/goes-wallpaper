@@ -255,6 +255,20 @@ wallpaper::set() {
   local image="$1" mode="${2:-fit}"
   [ -f "$image" ] || { goes::err "image not found: $image"; return 1; }
 
+  # For desktops without a built-in backend: GOES_WALLPAPER_CMD is run with
+  # the image path as its last argument.
+  if [ -n "${GOES_WALLPAPER_CMD:-}" ]; then
+    local out
+    # shellcheck disable=SC2086 # word splitting is how the command gets its arguments
+    if out=$($GOES_WALLPAPER_CMD "$image" 2>&1); then
+      WALLPAPER_BACKEND='custom'
+      return 0
+    fi
+    goes::log error "event=wallpaper_backend_failed backend=custom cmd=$GOES_WALLPAPER_CMD detail=${out//$'\n'/ }"
+    goes::err "GOES_WALLPAPER_CMD failed: $GOES_WALLPAPER_CMD"
+    return 1
+  fi
+
   case "$GOES_PLATFORM" in
     macos) wallpaper::_set_macos "$image" "$mode" ;;
     linux) wallpaper::_set_linux "$image" "$mode" ;;

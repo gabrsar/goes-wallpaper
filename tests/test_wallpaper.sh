@@ -26,6 +26,19 @@ assert_status 1 "setting a nonexistent file fails" wallpaper::set "$T_SANDBOX/no
 assert_contains "$(wallpaper::set "$T_SANDBOX/nope.jpg" fit 2>&1)" "image not found" \
   "the error names the problem"
 
+t::case "a custom wallpaper command takes precedence"
+: >"$GOES_WALLPAPER_LOG"
+wallpaper::set "$FIXTURES/tiny.jpg" fit
+assert_eq '0' "$?" "the custom command succeeds"
+assert_eq 'custom' "$WALLPAPER_BACKEND" "the backend is reported as custom"
+assert_eq "$FIXTURES/tiny.jpg" "$(cat "$GOES_WALLPAPER_LOG")" "the image path is passed as the last argument"
+
+t::case "a failing custom command is reported, not hidden"
+assert_status 1 "a failing command fails the update" env GOES_WALLPAPER_CMD=false \
+  "$BASH" -c ". '$GOES_LIB_DIR/wallpaper.sh'; wallpaper::set '$FIXTURES/tiny.jpg' fit"
+out=$(GOES_WALLPAPER_CMD=false "$BASH" -c ". '$GOES_LIB_DIR/wallpaper.sh'; wallpaper::set '$FIXTURES/tiny.jpg' fit" 2>&1)
+assert_contains "$out" "GOES_WALLPAPER_CMD failed" "the error names the command"
+
 t::case "power detection returns a definite answer"
 if wallpaper::on_ac_power; then
   t::_pass "on AC power"

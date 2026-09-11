@@ -13,11 +13,12 @@ _GOES_SERVICE_SH=1
 # shellcheck source=lib/config.sh
 . "${GOES_LIB_DIR}/config.sh"
 
-GOES_LAUNCHD_LABEL="com.github.gabrsar.goes-wallpaper"
+GOES_LAUNCHD_LABEL="${GOES_LAUNCHD_LABEL:-com.github.gabrsar.goes-wallpaper}"
 GOES_LAUNCHD_PLIST="$HOME/Library/LaunchAgents/$GOES_LAUNCHD_LABEL.plist"
 GOES_SYSTEMD_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-GOES_SYSTEMD_SERVICE="$GOES_SYSTEMD_DIR/goes-wallpaper.service"
-GOES_SYSTEMD_TIMER="$GOES_SYSTEMD_DIR/goes-wallpaper.timer"
+GOES_SYSTEMD_UNIT="${GOES_SYSTEMD_UNIT:-goes-wallpaper}"
+GOES_SYSTEMD_SERVICE="$GOES_SYSTEMD_DIR/$GOES_SYSTEMD_UNIT.service"
+GOES_SYSTEMD_TIMER="$GOES_SYSTEMD_DIR/$GOES_SYSTEMD_UNIT.timer"
 
 service::_bin() {
   printf '%s/bin/goes' "$GOES_ROOT_DIR"
@@ -130,7 +131,7 @@ OnStartupSec=30s
 OnUnitActiveSec=${CFG_interval:-10}min
 AccuracySec=30s
 Persistent=true
-Unit=goes-wallpaper.service
+Unit=$GOES_SYSTEMD_UNIT.service
 
 [Install]
 WantedBy=timers.target
@@ -151,8 +152,8 @@ service::_start_linux() {
     DBUS_SESSION_BUS_ADDRESS XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR 2>/dev/null || true
 
   systemctl --user daemon-reload || return 1
-  systemctl --user enable --now goes-wallpaper.timer || {
-    goes::err "systemctl could not enable goes-wallpaper.timer"
+  systemctl --user enable --now "$GOES_SYSTEMD_UNIT.timer" || {
+    goes::err "systemctl could not enable $GOES_SYSTEMD_UNIT.timer"
     return 1
   }
   goes::log info "event=service_started platform=linux interval=${CFG_interval}m"
@@ -161,7 +162,7 @@ service::_start_linux() {
 
 service::_stop_linux() {
   goes::have systemctl || return 1
-  systemctl --user disable --now goes-wallpaper.timer 2>/dev/null
+  systemctl --user disable --now "$GOES_SYSTEMD_UNIT.timer" 2>/dev/null
   systemctl --user daemon-reload 2>/dev/null
   goes::log info "event=service_stopped platform=linux"
   return 0
@@ -169,7 +170,7 @@ service::_stop_linux() {
 
 service::_status_linux() {
   goes::have systemctl || return 1
-  systemctl --user is-active goes-wallpaper.timer >/dev/null 2>&1
+  systemctl --user is-active "$GOES_SYSTEMD_UNIT.timer" >/dev/null 2>&1
 }
 
 # ── Public API ───────────────────────────────────────────────────────────────
@@ -204,7 +205,7 @@ service::is_running() {
 
 service::next_run() {
   if [ "$GOES_PLATFORM" = "linux" ] && goes::have systemctl; then
-    systemctl --user list-timers goes-wallpaper.timer --no-pager --no-legend 2>/dev/null \
+    systemctl --user list-timers "$GOES_SYSTEMD_UNIT.timer" --no-pager --no-legend 2>/dev/null \
       | awk '{print $1, $2, $3}'
   fi
 }
@@ -212,7 +213,7 @@ service::next_run() {
 service::describe() {
   case "$GOES_PLATFORM" in
     macos) printf 'launchd agent %s' "$GOES_LAUNCHD_LABEL" ;;
-    linux) printf 'systemd user timer goes-wallpaper.timer' ;;
+    linux) printf 'systemd user timer %s.timer' "$GOES_SYSTEMD_UNIT" ;;
     *)     printf 'none' ;;
   esac
 }

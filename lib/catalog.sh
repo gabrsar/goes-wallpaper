@@ -277,15 +277,15 @@ catalog::resolutions() {
   printf '%s\n' "$out"
 }
 
-# catalog::pick_resolution MAX_PIXELS <<< resolution list
-# Chooses the largest resolution not exceeding MAX_PIXELS, falling back to the
-# smallest available when every option is too large.
+# catalog::pick_resolution MAX_PIXELS <<< resolution list (largest first)
+# Chooses the largest resolution; MAX_PIXELS > 0 caps it, falling back to the
+# smallest available when every option is over the cap.
 catalog::pick_resolution() {
-  local max="$1" pixels res best='' smallest=''
+  local max="${1:-0}" pixels res best='' smallest=''
   while IFS='	' read -r pixels res; do
     [ -z "$res" ] && continue
     smallest="$res"
-    if [ -z "$best" ] && [ "$pixels" -le "$max" ]; then
+    if [ -z "$best" ] && { [ "$max" -eq 0 ] || [ "$pixels" -le "$max" ]; }; then
       best="$res"
     fi
   done

@@ -124,8 +124,8 @@ setup::choose_resolution() {
   fi
   ui::spin_stop 0 "Sizes available${screen:+ (your display: $screen)}"
 
-  # The smallest image that still covers the display width is the sweet spot:
-  # sharp, but not a 200 MB download every ten minutes.
+  # Smallest frame that still covers the display width, offered as the
+  # bandwidth-friendly alternative to the default (largest).
   local pixels res recommended='' rev
   rev=$(printf '%s\n' "$list" | LC_ALL=C sort -n)
   while IFS='	' read -r pixels res; do
@@ -149,38 +149,29 @@ $list
 EOT
   ui::spin_stop 0 "Download sizes checked"
 
-  local auto_pick
-  auto_pick=$(printf '%s\n' "$list" | catalog::pick_resolution "$CFG_max_pixels")
+  local largest
+  largest=$(printf '%s\n' "$list" | head -1 | cut -f2)
 
-  # Recommended choices first, then every size largest to smallest.
+  # The largest frame is the default; smaller sizes are there for people
+  # watching their bandwidth.
   UI_ITEMS=(); UI_HINTS=(); UI_GROUPS=(); SETUP_RES_OPT=()
   local n=0 initial=0
-  UI_ITEMS[0]="Automatic"
-  UI_HINTS[0]="now $auto_pick, adjusts itself"
+  UI_ITEMS[0]="Largest available"
+  UI_HINTS[0]="now $largest $GOES_GLYPH_DOT $(setup::_res_hint "$largest" "$sizes")"
   UI_GROUPS[0]="Recommended"
   SETUP_RES_OPT[0]='auto'
   n=1
 
-  # Only recommend a size when the display was measured; otherwise the
-  # "recommendation" would just be the largest file.
-  local show_recommended=0
-  [ "$screen_w" -gt 0 ] && [ -n "$recommended" ] && show_recommended=1
-
-  if [ "$show_recommended" -eq 1 ]; then
-    UI_ITEMS[$n]="$recommended  $GOES_GLYPH_OK best for your display"
-    UI_HINTS[$n]="$(setup::_res_hint "$recommended" "$sizes")"
-    UI_GROUPS[$n]="Recommended"
-    SETUP_RES_OPT[$n]="$recommended"
-    [ "$recommended" = "$CFG_resolution" ] && initial="$n"
-    n=$((n + 1))
-  fi
-
+  local label
   while IFS='	' read -r pixels res; do
     [ -z "$res" ] && continue
-    [ "$show_recommended" -eq 1 ] && [ "$res" = "$recommended" ] && continue
-    UI_ITEMS[$n]="$res"
+    label="$res"
+    if [ "$screen_w" -gt 0 ] && [ "$res" = "$recommended" ]; then
+      label="$res  $GOES_GLYPH_DOT smallest that fills your display"
+    fi
+    UI_ITEMS[$n]="$label"
     UI_HINTS[$n]="$(setup::_res_hint "$res" "$sizes")"
-    UI_GROUPS[$n]="All sizes"
+    UI_GROUPS[$n]="Fixed size"
     SETUP_RES_OPT[$n]="$res"
     [ "$res" = "$CFG_resolution" ] && initial="$n"
     n=$((n + 1))
@@ -189,7 +180,7 @@ $list
 EOT
 
   UI_TITLE="How large should each frame be?"
-  UI_SUBTITLE="This downloads once per interval, so mind your bandwidth"
+  UI_SUBTITLE="Largest is sharpest; it downloads once per refresh"
   UI_INITIAL="$initial"
   ui::select || return 1
   SETUP_RESOLUTION="${SETUP_RES_OPT[$UI_RESULT]}"
